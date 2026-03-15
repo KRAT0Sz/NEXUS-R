@@ -59,6 +59,7 @@ public partial class ClientRequesterController(MerrickContext databaseContext, I
             "claim_season_rewards"          => ClaimSeasonRewards(),
             "get_products"                  => GetProducts(),
             "get_upgrades"                  => await GetUpgrades(),
+            "selected_upgrades"             => await GetUpgrades(),
             "get_initStats"                 => await GetInitialStatistics(),
             "show_simple_stats"             => await GetSimpleStatistics(),
 
