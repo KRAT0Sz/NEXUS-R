@@ -211,6 +211,10 @@ public class PlinkoController(MerrickContext databaseContext, IDatabase distribu
 
         await MerrickContext.SaveChangesAsync();
 
+        // Send updated owned items immediately so client can use the item without restarting
+        if (response.Contains("my_upgrades").Equals(false))
+            response["my_upgrades"] = user.OwnedStoreItems;
+
         return Ok(PhpSerialization.Serialize(response));
     }
 
@@ -422,7 +426,8 @@ public class PlinkoController(MerrickContext databaseContext, IDatabase distribu
         {
             ["status_code"] = 51,
             ["tickets_remaining"] = user.PlinkoTickets.ToString(),
-            ["grabBag"] = false
+            ["grabBag"] = false,
+            ["my_upgrades"] = user.OwnedStoreItems
         };
 
         return Ok(PhpSerialization.Serialize(response));

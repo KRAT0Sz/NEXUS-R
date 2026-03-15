@@ -216,7 +216,12 @@ public class StoreController(MerrickContext databaseContext, IDatabase distribut
         (Dictionary<string, object> response, bool success) = ExecutePurchase(account, storeItem, currency);
 
         if (success)
+        {
             await MerrickContext.SaveChangesAsync();
+
+            // Send updated owned items immediately so client can use the item without restarting
+            response["my_upgrades"] = account.User.OwnedStoreItems;
+        }
 
         PopulateItemListing(account.User, account, response, categoryID, currentPage);
 
@@ -256,7 +261,12 @@ public class StoreController(MerrickContext databaseContext, IDatabase distribut
         (Dictionary<string, object> response, bool success) = ExecutePurchase(account, storeItem, currency);
 
         if (success)
+        {
             await MerrickContext.SaveChangesAsync();
+
+            // Send updated owned items immediately so client can use the item without restarting
+            response["my_upgrades"] = account.User.OwnedStoreItems;
+        }
 
         // The Client Expects The Response Code To Match The Request Code
         response["responseCode"] = (int) StoreRequestCode.BUY_PRODUCT_GAME_LOBBY_REQUEST;
