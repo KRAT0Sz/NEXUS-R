@@ -1,4 +1,4 @@
-﻿namespace KONGOR.MasterServer.Controllers.ServerRequesterController;
+namespace KONGOR.MasterServer.Controllers.ServerRequesterController;
 
 public partial class ServerRequesterController
 {
@@ -128,6 +128,21 @@ public partial class ServerRequesterController
         
         if (srpPasswordHash.Equals(account.User.SRPPasswordHash) is false)
             return Unauthorized("Incorrect Password");
+
+        // Verify Server Version
+        string? serverVersion = Request.Form["version"];
+
+        if (string.IsNullOrWhiteSpace(serverVersion))
+            return BadRequest(@"Missing Value For Form Parameter ""version""");
+
+        string? minimumVersion = Environment.GetEnvironmentVariable("MINIMUM_SERVER_VERSION");
+
+        if (minimumVersion is not null && string.Compare(serverVersion, minimumVersion, StringComparison.OrdinalIgnoreCase) < 0)
+        {
+            Logger.LogWarning(@"Server ""{ServerName}"" (Version {ServerVersion}) Was Rejected For Being Below Minimum Version {MinimumVersion}", serverName, serverVersion, minimumVersion);
+
+            return BadRequest($@"Server Version {serverVersion} Is Below Minimum Required Version {minimumVersion}");
+        }
 
         // TODO: Verify Whether The Server Version Matches The Client Version (Or Disallow Servers To Be Started If They Are Not On The Latest Version)
 

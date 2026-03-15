@@ -1,4 +1,4 @@
-﻿namespace MERRICK.DatabaseContext.Persistence;
+namespace MERRICK.DatabaseContext.Persistence;
 
 public sealed class MerrickContext : DbContext
 {
@@ -19,8 +19,10 @@ public sealed class MerrickContext : DbContext
     public DbSet<AccountStatistics> AccountStatistics => Set<AccountStatistics>();
     public DbSet<Clan> Clans => Set<Clan>();
     public DbSet<HeroGuide> HeroGuides => Set<HeroGuide>();
+    public DbSet<HeroMastery> HeroMasteries => Set<HeroMastery>();
     public DbSet<MatchStatistics> MatchStatistics => Set<MatchStatistics>();
     public DbSet<MatchParticipantStatistics> MatchParticipantStatistics => Set<MatchParticipantStatistics>();
+    public DbSet<RedeemedCode> RedeemedCodes => Set<RedeemedCode>();
     public DbSet<Role> Roles => Set<Role>();
     public DbSet<Token> Tokens => Set<Token>();
     public DbSet<User> Users => Set<User>();
@@ -35,6 +37,7 @@ public sealed class MerrickContext : DbContext
         ConfigureUsers(builder.Entity<User>());
         ConfigureAccounts(builder.Entity<Account>());
         ConfigureAccountStatistics(builder.Entity<AccountStatistics>());
+        ConfigureHeroMasteries(builder.Entity<HeroMastery>());
         ConfigureMatchStatistics(builder.Entity<MatchStatistics>());
         ConfigureMatchParticipantStatistics(builder.Entity<MatchParticipantStatistics>());
     }
@@ -47,8 +50,10 @@ public sealed class MerrickContext : DbContext
         builder.Entity<AccountStatistics>().ToTable("AccountStatistics", StatisticsSchema);
         builder.Entity<Clan>().ToTable("Clans", CoreSchema);
         builder.Entity<HeroGuide>().ToTable("HeroGuides", MiscellaneousSchema);
+        builder.Entity<HeroMastery>().ToTable("HeroMasteries", StatisticsSchema);
         builder.Entity<MatchParticipantStatistics>().ToTable("MatchParticipantStatistics", StatisticsSchema);
         builder.Entity<MatchStatistics>().ToTable("MatchStatistics", StatisticsSchema);
+        builder.Entity<RedeemedCode>().ToTable("RedeemedCodes", CoreSchema);
         builder.Entity<Role>().ToTable("Roles", AuthenticationSchema);
         builder.Entity<Token>().ToTable("Tokens", AuthenticationSchema);
         builder.Entity<User>().ToTable("Users", CoreSchema);
@@ -115,6 +120,17 @@ public sealed class MerrickContext : DbContext
         {
             ownedNavigationBuilder.ToJson();
         });
+    }
+
+    private static void ConfigureHeroMasteries(EntityTypeBuilder<HeroMastery> builder)
+    {
+        builder.Property(mastery => mastery.ClaimedRewardLevels).HasConversion
+        (
+            value => JsonSerializer.Serialize(value, new JsonSerializerOptions()),
+            value => JsonSerializer.Deserialize<List<int>>(value, new JsonSerializerOptions()) ?? new List<int>(),
+            new ValueComparer<List<int>>((first, second) => (first ?? new List<int>()).SequenceEqual(second ?? new List<int>()),
+                collection => collection.Aggregate(0, (accumulatedHashCode, value) => HashCode.Combine(accumulatedHashCode, value.GetHashCode())), collection => collection.ToList())
+        );
     }
 
     private static void ConfigureMatchParticipantStatistics(EntityTypeBuilder<MatchParticipantStatistics> builder)

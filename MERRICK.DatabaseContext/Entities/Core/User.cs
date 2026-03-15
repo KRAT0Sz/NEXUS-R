@@ -1,4 +1,4 @@
-﻿namespace MERRICK.DatabaseContext.Entities.Core;
+namespace MERRICK.DatabaseContext.Entities.Core;
 
 [Index(nameof(EmailAddress), IsUnique = true)]
 public class User
@@ -37,6 +37,16 @@ public class User
     public int TotalExperience { get; set; } = 0;
 
     public List<string> OwnedStoreItems { get; set; } = ["ai.Default Icon", "cc.white", "t.Standard"];
+
+    public int MatchmakingWinStreak { get; set; } = 0;
+
+    public int MatchmakingLossStreak { get; set; } = 0;
+
+    public int MatchmakingCasualWinStreak { get; set; } = 0;
+
+    public int MatchmakingCasualLossStreak { get; set; } = 0;
+
+    public int PlacementMatchesRemaining { get; set; } = 10;
 
     [NotMapped]
     public bool IsAdministrator => Role.Name.Equals(UserRoles.Administrator);

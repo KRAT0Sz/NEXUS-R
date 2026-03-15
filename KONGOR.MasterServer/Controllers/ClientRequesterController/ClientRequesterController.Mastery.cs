@@ -24,14 +24,22 @@ public partial class ClientRequesterController
         if (account is null)
             return NotFound($@"Account With Name ""{accountName}"" Could Not Be Found");
 
-        // TODO: Implement Mastery Data Retrieval Once The Mastery System Is Fully Implemented
+        List<HeroMastery> heroMasteries = await MerrickContext.HeroMasteries
+            .Where(mastery => mastery.AccountID == account.ID)
+            .ToListAsync();
+
+        List<HeroMasteryInfo> masteryInfo = heroMasteries.Select(mastery => new HeroMasteryInfo
+        {
+            HeroName = mastery.HeroIdentifier,
+            Experience = mastery.MasteryExperience
+        }).ToList();
 
         Dictionary<string, object> response = new ()
         {
             ["error_code"] = 0,
             ["error_msg"] = string.Empty,
             ["account_id"] = account.ID,
-            ["mastery_info"] = Array.Empty<object>()
+            ["mastery_info"] = masteryInfo
         };
 
         return Ok(PhpSerialization.Serialize(response));

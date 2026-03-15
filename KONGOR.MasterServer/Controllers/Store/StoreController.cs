@@ -289,16 +289,88 @@ public class StoreController(MerrickContext databaseContext, IDatabase distribut
     }
 
     /// <summary>
-    ///     Processes a code redemption request. Not yet implemented.
+    ///     Processes a code redemption request.
     /// </summary>
-    private IActionResult RedeemCode()
+    private async Task<IActionResult> RedeemCode()
     {
-        // TODO: Implement Code Redemption
+        string? cookie = Request.Form["cookie"];
+
+        if (string.IsNullOrWhiteSpace(cookie))
+            return Unauthorized(@"Missing Value For Form Parameter ""cookie""");
+
+        string? accountName = await DistributedCache.GetAccountNameForSessionCookie(cookie);
+
+        if (accountName is null)
+            return Unauthorized($@"No Session Found For Cookie ""{cookie}""");
+
+        Account? account = await MerrickContext.Accounts
+            .Include(a => a.User)
+            .SingleOrDefaultAsync(a => a.Name.Equals(accountName));
+
+        if (account is null)
+            return NotFound($@"Account With Name ""{accountName}"" Could Not Be Found");
+
+        string? code = Request.Form["code"];
+
+        if (string.IsNullOrWhiteSpace(code))
+            return BadRequest(@"Missing Value For Form Parameter ""code""");
+
+        code = code.Trim().ToUpperInvariant();
+
+        RedemptionCode? redemptionCode = JSONConfiguration.CodeRedemptionConfiguration.Codes
+            .SingleOrDefault(c => c.Code.Equals(code, StringComparison.OrdinalIgnoreCase));
+
+        if (redemptionCode is null)
+            return ReturnError(StorePopupCode.POP_UP_ERROR_MESSAGE, StoreErrorCode.STORE_PURCHASE_CODE_INVALID_ERROR);
+
+        if (redemptionCode.Active is false)
+            return ReturnError(StorePopupCode.POP_UP_ERROR_MESSAGE, StoreErrorCode.STORE_PURCHASE_CODE_INVALID_ERROR);
+
+        if (redemptionCode.ExpiresAt < DateTimeOffset.UtcNow)
+            return ReturnError(StorePopupCode.POP_UP_ERROR_MESSAGE, StoreErrorCode.STORE_PURCHASE_CODE_INVALID_ERROR);
+
+        int existingRedemptions = await MerrickContext.RedeemedCodes
+            .CountAsync(r => r.AccountID == account.ID && r.Code.Equals(code, StringComparison.OrdinalIgnoreCase));
+
+        if (existingRedemptions >= redemptionCode.MaxRedemptions)
+            return ReturnError(StorePopupCode.POP_UP_ERROR_MESSAGE, StoreErrorCode.STORE_PURCHASE_CODE_USED_ONCE_ERROR);
+
+        RedeemedCode redeemedCode = new ()
+        {
+            AccountID = account.ID,
+            Code = code
+        };
+
+        await MerrickContext.RedeemedCodes.AddAsync(redeemedCode);
+
+        if (redemptionCode.Rewards.GoldCoins > 0)
+            account.User.GoldCoins += redemptionCode.Rewards.GoldCoins;
+
+        if (redemptionCode.Rewards.SilverCoins > 0)
+            account.User.SilverCoins += redemptionCode.Rewards.SilverCoins;
+
+        if (redemptionCode.Rewards.PlinkoTickets > 0)
+            account.User.PlinkoTickets += redemptionCode.Rewards.PlinkoTickets;
+
+        await MerrickContext.SaveChangesAsync();
 
         Dictionary<string, object> response = new ()
         {
-            ["popupCode"] = (int) StorePopupCode.POP_UP_ERROR_MESSAGE,
-            ["errorCode"] = (int) StoreErrorCode.STORE_PURCHASE_CODE_INVALID_ERROR
+            ["popupCode"] = (int) StorePopupCode.POP_UP_REDEMPTION_SUCCESS,
+            ["goldCoins"] = account.User.GoldCoins,
+            ["silverCoins"] = account.User.SilverCoins,
+            ["plinkoTickets"] = account.User.PlinkoTickets
+        };
+
+        return Ok(PhpSerialization.Serialize(response));
+    }
+
+    private IActionResult ReturnError(StorePopupCode popupCode, StoreErrorCode errorCode)
+    {
+        Dictionary<string, object> response = new ()
+        {
+            ["popupCode"] = (int) popupCode,
+            ["errorCode"] = (int) errorCode
         };
 
         return Ok(PhpSerialization.Serialize(response));
@@ -954,7 +1026,10 @@ file enum StoreResponseCode
     POINT_PACKAGE_RESPONSE              = 5,
 
     // Vault Avatar List
-    VAULT_AVATAR_LIST_RESPONSE          = 6
+    VAULT_AVATAR_LIST_RESPONSE          = 6,
+
+    // Refresh Selected Items
+    REFRESH_SELECTED_ITEMS_RESPONSE     = 7
 }
 
 file enum StoreErrorCode

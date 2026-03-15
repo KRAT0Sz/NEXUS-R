@@ -1,0 +1,43 @@
+{
+    "Codes": [
+        {
+            "Code": "WELCOME2026",
+            "Description": "Welcome bonus for new players",
+            "Rewards": {
+                "GoldCoins": 5555,
+                "SilverCoins": 5555,
+                "PlinkoTickets": 5555,
+                "ProductIdentifiers": []
+            },
+            "MaxRedemptions": 1,
+            "ExpiresAt": "2025-12-31T23:59:59Z",
+            "Active": true
+        },
+        {
+            "Code": "DOUBLEEXP",
+            "Description": "Double experience weekend",
+            "Rewards": {
+                "GoldCoins": 0,
+                "SilverCoins": 0,
+                "PlinkoTickets": 0,
+                "ProductIdentifiers": []
+            },
+            "MaxRedemptions": 1,
+            "ExpiresAt": "2025-12-31T23:59:59Z",
+            "Active": true
+        },
+        {
+            "Code": "FREETICKETS",
+            "Description": "Free Plinko tickets",
+            "Rewards": {
+                "GoldCoins": 0,
+                "SilverCoins": 0,
+                "PlinkoTickets": 5,
+                "ProductIdentifiers": []
+            },
+            "MaxRedemptions": 1,
+            "ExpiresAt": "2025-12-31T23:59:59Z",
+            "Active": true
+        }
+    ]
+}

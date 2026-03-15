@@ -1,4 +1,4 @@
-﻿namespace KONGOR.MasterServer.Controllers.ClientRequesterController;
+namespace KONGOR.MasterServer.Controllers.ClientRequesterController;
 
 public partial class ClientRequesterController
 {
@@ -219,16 +219,16 @@ public partial class ClientRequesterController
             {
                 RankedMatchesWon = rankedWins,
                 RankedMatchesLost = rankedLosses,
-                WinStreak = 0, // TODO: Implement Win Streak Tracking
-                InPlacementPhase = 0, // TODO: Implement Placement Match Tracking
+                WinStreak = account.User.MatchmakingWinStreak > 0 ? account.User.MatchmakingWinStreak : -account.User.MatchmakingLossStreak,
+                InPlacementPhase = account.User.PlacementMatchesRemaining > 0 ? 1 : 0,
                 LevelsGainedThisSeason = account.User.TotalLevel
             },
             SimpleCasualSeasonStats = new SimpleSeasonStats
             {
                 RankedMatchesWon = casualWins,
                 RankedMatchesLost = casualLosses,
-                WinStreak = 0, // TODO: Implement Win Streak Tracking
-                InPlacementPhase = 0, // TODO: Implement Placement Match Tracking
+                WinStreak = account.User.MatchmakingCasualWinStreak > 0 ? account.User.MatchmakingCasualWinStreak : -account.User.MatchmakingCasualLossStreak,
+                InPlacementPhase = 0, // Casual mode does not have placement phase
                 LevelsGainedThisSeason = account.User.TotalLevel
             },
             MVPAwardsCount = aggregatedAwards.MVPAwards,
@@ -241,6 +241,85 @@ public partial class ClientRequesterController
         };
 
         return Ok(PhpSerialization.Serialize(response));
+    }
+
+    private List<MasteryRewardTier> PopulateMasteryRewards(List<HeroMastery> heroMasteries)
+    {
+        int totalMasteryLevel = 0;
+
+        foreach (HeroMastery mastery in heroMasteries)
+        {
+            totalMasteryLevel += CalculateMasteryLevel(mastery.MasteryExperience);
+        }
+
+        List<MasteryRewardTier> rewards = [];
+
+        foreach (MasteryRewardConfiguration rewardConfig in MasteryRewardsConfiguration.MasteryRewards)
+        {
+            bool alreadyClaimed = heroMasteries.SelectMany(m => m.ClaimedRewardLevels).Contains(rewardConfig.RequiredLevel);
+
+            MasteryReward reward = new ()
+            {
+                ProductID = rewardConfig.ProductIdentifier,
+                ProductName = rewardConfig.ProductName ?? string.Empty,
+                ProductLocalContent = rewardConfig.ProductLocalResource ?? string.Empty,
+                Quantity = rewardConfig.ProductQuantity,
+                GoldCoins = rewardConfig.GoldCoins,
+                SilverCoins = rewardConfig.SilverCoins,
+                GameTokens = rewardConfig.PlinkoTickets
+            };
+
+            rewards.Add(new MasteryRewardTier
+            {
+                Level = rewardConfig.RequiredLevel,
+                AlreadyClaimed = alreadyClaimed,
+                Reward = reward
+            });
+        }
+
+        return rewards;
+    }
+
+    private static int CalculateMasteryLevel(int experience)
+    {
+        int level = 0;
+        int requiredExperience = 100;
+
+        while (experience >= requiredExperience && level < 40)
+        {
+            level++;
+            requiredExperience += level * 100;
+        }
+
+        return level;
+    }
+
+    private static int CalculateMatchMasteryExperience(MatchParticipantStatistics playerStats, MatchStatistics matchStats)
+    {
+        // Base experience from match duration (1 XP per second, capped at 1800 for 30 min)
+        int baseExperience = Math.Min(playerStats.SecondsPlayed, 1800);
+
+        // Win bonus: 50% extra
+        if (playerStats.Win)
+        {
+            baseExperience = (int)(baseExperience * 1.5);
+        }
+
+        // Performance bonus based on KDA
+        int kills = playerStats.HeroKills;
+        int deaths = playerStats.HeroDeaths;
+        int assists = playerStats.HeroAssists;
+
+        double kda = deaths > 0 ? (kills + assists * 0.5) / deaths : (kills + assists);
+
+        // Additional XP based on KDA performance
+        int performanceBonus = 0;
+        if (kda >= 5.0) performanceBonus = 500;
+        else if (kda >= 3.0) performanceBonus = 300;
+        else if (kda >= 1.5) performanceBonus = 150;
+        else if (kda >= 1.0) performanceBonus = 50;
+
+        return baseExperience + performanceBonus;
     }
 
     private async Task<IActionResult> GetStatistics()
@@ -319,8 +398,26 @@ public partial class ClientRequesterController
         {
             ShowMasteryStatisticsResponse response = new (account);
 
-            // TODO: Populate MasteryInfo From Mastery System Once Re-Implemented
-            // TODO: Populate MasteryRewards From Mastery System Once Re-Implemented (Only For Own Account)
+            string? cookie = Request.Form["cookie"].SingleOrDefault();
+            string? viewingAccountName = cookie is not null ? await DistributedCache.GetAccountNameForSessionCookie(cookie) : null;
+            bool isViewingOwnAccount = viewingAccountName is not null && viewingAccountName.Equals(account.Name, StringComparison.OrdinalIgnoreCase);
+
+            // Populate MasteryInfo
+            List<HeroMastery> heroMasteries = await MerrickContext.HeroMasteries
+                .Where(mastery => mastery.AccountID == account.ID)
+                .ToListAsync();
+
+            response.MasteryInfo = heroMasteries.Select(mastery => new HeroMasteryInfo
+            {
+                HeroName = mastery.HeroIdentifier,
+                Experience = mastery.MasteryExperience
+            }).ToList();
+
+            // Populate MasteryRewards only for own account
+            if (isViewingOwnAccount)
+            {
+                response.MasteryRewards = PopulateMasteryRewards(heroMasteries);
+            }
 
             return Ok(PhpSerialization.Serialize(response));
         }
@@ -576,17 +673,37 @@ public partial class ClientRequesterController
 
         MatchParticipantStatistics requestingPlayerStatistics = allPlayerStatistics.Single(statistics => statistics.AccountID == account.ID);
 
+        // Get current hero mastery from database
+        HeroMastery? heroMastery = await MerrickContext.HeroMasteries
+            .SingleOrDefaultAsync(m => m.AccountID == account.ID && m.HeroIdentifier == requestingPlayerStatistics.HeroIdentifier);
+
+        int currentMasteryExperience = heroMastery?.MasteryExperience ?? 0;
+
+        // Calculate match mastery experience based on duration and result
+        int matchMasteryExperience = CalculateMatchMasteryExperience(requestingPlayerStatistics, matchStatistics);
+
+        // Count max-level heroes and boost items
+        List<HeroMastery> allHeroMasteries = await MerrickContext.HeroMasteries
+            .Where(m => m.AccountID == account.ID)
+            .ToListAsync();
+
+        int maxLevelHeroesCount = allHeroMasteries.Count(m => CalculateMasteryLevel(m.MasteryExperience) >= 40);
+        int boostItemCount = account.User.OwnedStoreItems.Count(item => item.StartsWith("ma.Mastery Boost"));
+        int superBoostItemCount = account.User.OwnedStoreItems.Count(item => item.StartsWith("ma.Super Mastery Boost"));
+
+        int bonusExperience = (maxLevelHeroesCount * 10) + (boostItemCount * 5) + (superBoostItemCount * 10);
+
         MatchMastery matchMastery = new
         (
             heroIdentifier: requestingPlayerStatistics.HeroIdentifier,
-            currentMasteryExperience: 0, // TODO: Retrieve From Mastery System Once Re-Implemented
-            matchMasteryExperience: 100, // TODO: Calculate Based On Match Duration And Result (Use Calculation That I Implemented In Legacy PK)
-            bonusExperience: 10 // TODO: Calculate Based On Max-Level Heroes Owned
+            currentMasteryExperience: currentMasteryExperience,
+            matchMasteryExperience: matchMasteryExperience,
+            bonusExperience: bonusExperience
         )
         {
-            MasteryExperienceMaximumLevelHeroesCount = 0, // TODO: Count Heroes At Max Mastery Level (+ Enable MatchMastery Constructor Once Masteries Are Re-Implemented)
-            MasteryExperienceBoostProductCount = 0, // TODO: Count "ma.Mastery Boost" Items (+ Enable MatchMastery Constructor Once Masteries Are Re-Implemented)
-            MasteryExperienceSuperBoostProductCount = 0 // TODO: Count "ma.Super Mastery Boost" Items (+ Enable MatchMastery Constructor Once Masteries Are Re-Implemented)
+            MasteryExperienceMaximumLevelHeroesCount = maxLevelHeroesCount,
+            MasteryExperienceBoostProductCount = boostItemCount,
+            MasteryExperienceSuperBoostProductCount = superBoostItemCount
         };
 
         MatchStatsResponse response = new ()

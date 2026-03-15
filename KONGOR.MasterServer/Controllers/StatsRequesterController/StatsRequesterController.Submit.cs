@@ -1,4 +1,4 @@
-﻿namespace KONGOR.MasterServer.Controllers.StatsRequesterController;
+namespace KONGOR.MasterServer.Controllers.StatsRequesterController;
 
 public partial class StatsRequesterController
 {
@@ -43,7 +43,7 @@ public partial class StatsRequesterController
 
             if (existingMatchParticipantStatistics is null)
             {
-                Account? account = await MerrickContext.Accounts.Include(account => account.Clan).SingleOrDefaultAsync(account => account.Name.Equals(accountName));
+                Account? account = await MerrickContext.Accounts.Include(account => account.User).SingleOrDefaultAsync(account => account.Name.Equals(accountName));
 
                 if (account is null)
                 {
@@ -55,6 +55,12 @@ public partial class StatsRequesterController
                 MatchParticipantStatistics matchParticipantStatistics = form.ToMatchParticipantStatistics(playerIndex, account.ID, account.Name, account.Clan?.ID, account.Clan?.Tag);
 
                 await MerrickContext.MatchParticipantStatistics.AddAsync(matchParticipantStatistics);
+
+                // Update Win Streak And Placement Phase Tracking
+                await UpdateWinStreakAndPlacementAsync(account.User, matchParticipantStatistics.Team, matchParticipantStatistics.Win, form.MatchStats.GameMode);
+
+                // Update Hero Mastery Experience
+                await UpdateHeroMasteryAsync(account.ID, matchParticipantStatistics, form.MatchStats);
             }
 
             else Logger.LogError($@"[BUG] Player Statistics For Account Name ""{accountName}"" In Match ID {form.MatchStats.MatchID} Have Already Been Submitted");
@@ -66,6 +72,98 @@ public partial class StatsRequesterController
         await DistributedCache.RemoveMatchInformation(form.MatchStats.MatchID);
 
         return Ok();
+    }
+
+    private async Task UpdateWinStreakAndPlacementAsync(User user, int team, bool isWin, string gameMode)
+    {
+        // Determine if this is ranked or casual based on game mode
+        bool isRanked = gameMode.Contains("ranked", StringComparison.OrdinalIgnoreCase);
+
+        // Update Placement Phase (only for ranked)
+        if (isRanked && user.PlacementMatchesRemaining > 0)
+        {
+            user.PlacementMatchesRemaining--;
+        }
+
+        // Update Win/Loss Streaks
+        if (isWin)
+        {
+            if (isRanked)
+            {
+                user.MatchmakingWinStreak++;
+                user.MatchmakingLossStreak = 0;
+            }
+            else
+            {
+                user.MatchmakingCasualWinStreak++;
+                user.MatchmakingCasualLossStreak = 0;
+            }
+        }
+        else
+        {
+            if (isRanked)
+            {
+                user.MatchmakingLossStreak++;
+                user.MatchmakingWinStreak = 0;
+            }
+            else
+            {
+                user.MatchmakingCasualLossStreak++;
+                user.MatchmakingCasualWinStreak = 0;
+            }
+        }
+    }
+
+    private async Task UpdateHeroMasteryAsync(int accountID, MatchParticipantStatistics playerStats, MatchStats matchStats)
+    {
+        string heroIdentifier = playerStats.HeroIdentifier;
+
+        HeroMastery? heroMastery = await MerrickContext.HeroMasteries
+            .SingleOrDefaultAsync(m => m.AccountID == accountID && m.HeroIdentifier == heroIdentifier);
+
+        if (heroMastery is null)
+        {
+            heroMastery = new HeroMastery
+            {
+                AccountID = accountID,
+                HeroIdentifier = heroIdentifier,
+                MasteryExperience = 0,
+                ClaimedRewardLevels = [],
+                TimestampLastUpdated = DateTimeOffset.UtcNow
+            };
+
+            await MerrickContext.HeroMasteries.AddAsync(heroMastery);
+        }
+
+        // Calculate match mastery experience (same logic as in ClientRequesterController.Stats)
+        int matchMasteryExperience = CalculateMatchMasteryExperienceForSubmission(playerStats);
+
+        heroMastery.MasteryExperience += matchMasteryExperience;
+        heroMastery.TimestampLastUpdated = DateTimeOffset.UtcNow;
+    }
+
+    private static int CalculateMatchMasteryExperienceForSubmission(MatchParticipantStatistics playerStats)
+    {
+        int baseExperience = Math.Min(playerStats.SecondsPlayed, 1800);
+
+        if (playerStats.Win)
+        {
+            baseExperience = (int)(baseExperience * 1.5);
+        }
+
+        int kills = playerStats.HeroKills;
+        int deaths = playerStats.HeroDeaths;
+        int assists = playerStats.HeroAssists;
+
+        double kda = deaths > 0 ? (kills + assists * 0.5) / deaths : (kills + assists);
+
+        int performanceBonus = 0;
+        if (kda >= 5.0) performanceBonus = 500;
+        else if (kda >= 3.0) performanceBonus = 300;
+        else if (kda >= 1.5) performanceBonus = 150;
+        else if (kda >= 1.0) performanceBonus = 50;
+
+        return baseExperience + performanceBonus;
     }
 
     private async Task<IActionResult> HandleStatsResubmission(StatsForSubmissionRequestForm form)
@@ -129,7 +227,7 @@ public partial class StatsRequesterController
 
             if (existingMatchParticipantStatistics is null)
             {
-                Account? account = await MerrickContext.Accounts.Include(account => account.Clan).SingleOrDefaultAsync(account => account.Name.Equals(accountName));
+                Account? account = await MerrickContext.Accounts.Include(account => account.User).SingleOrDefaultAsync(account => account.Name.Equals(accountName));
 
                 if (account is null)
                 {
@@ -141,6 +239,12 @@ public partial class StatsRequesterController
                 MatchParticipantStatistics matchParticipantStatistics = form.ToMatchParticipantStatistics(playerIndex, account.ID, account.Name, account.Clan?.ID, account.Clan?.Tag);
 
                 await MerrickContext.MatchParticipantStatistics.AddAsync(matchParticipantStatistics);
+
+                // Update Win Streak And Placement Phase Tracking
+                await UpdateWinStreakAndPlacementAsync(account.User, matchParticipantStatistics.Team, matchParticipantStatistics.Win, form.MatchStats.GameMode);
+
+                // Update Hero Mastery Experience
+                await UpdateHeroMasteryAsync(account.ID, matchParticipantStatistics, form.MatchStats);
             }
 
             else Logger.LogError($@"[BUG] Player Statistics For Account Name ""{accountName}"" In Match ID {form.MatchStats.MatchID} Have Already Been Submitted");
