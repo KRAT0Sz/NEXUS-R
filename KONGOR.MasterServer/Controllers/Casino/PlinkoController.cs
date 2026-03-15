@@ -1,10 +1,8 @@
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using KONGOR.MasterServer.Models.Plinko;
-using KONGOR.MasterServer.Configuration.Store;
 
 namespace KONGOR.MasterServer.Controllers.Casino;
 
@@ -16,14 +14,14 @@ public class PlinkoController(MerrickContext databaseContext, IDatabase distribu
     private IDatabase DistributedCache { get; } = distributedCache;
     private ILogger Logger { get; } = logger;
 
-    private static readonly Random RandomInstance = new ();
-
-    private static PlinkoConfiguration PlinkoConfig => JSONConfiguration.PlinkoConfiguration;
+    private static PlinkoConfiguration Configuration => JSONConfiguration.PlinkoConfiguration;
     private static StoreItemsConfiguration StoreItems => JSONConfiguration.StoreItemsConfiguration;
+
+    #region POST /master/casino/ — Open Plinko
 
     [HttpPost("casino/")]
     [Consumes("application/x-www-form-urlencoded")]
-    public async Task<IActionResult> GetPlinkoInfo()
+    public async Task<IActionResult> Open()
     {
         string? cookie = Request.Form["cookie"];
 
@@ -46,33 +44,51 @@ public class PlinkoController(MerrickContext databaseContext, IDatabase distribu
 
         User user = account.User;
 
-        PlinkoConfiguration plinko = PlinkoConfig;
-        List<PlinkoTier> tiers = plinko.Tiers;
+        string unixTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString();
 
-        List<string> tiersArray = GetTiersDisplayOrder(tiers);
-        Logger.LogInformation(@"[Plinko] Account ""{AccountName}"" - Tiers: {Tiers}, GoldCost: {GoldCost}, TicketCost: {TicketCost}",
-            accountName, string.Join(",", tiersArray), plinko.GoldCost, plinko.TicketCost);
+        List<int> productCounts = [];
+        List<string> updateTimestamps = [];
 
-        // Client expects "tiers" as PHP array mapping UI slot index to tier number (see HoN-Revival plinko docs).
-        OrderedDictionary response = new ()
+        foreach (int tierID in Configuration.TierLayout)
+        {
+            PlinkoPrizeTier? tier = Configuration.PrizeTiers.SingleOrDefault(prizeTier => prizeTier.TierID == tierID);
+
+            if (tier is null || tier.AwardsTickets)
+            {
+                productCounts.Add(0);
+                updateTimestamps.Add(unixTimestamp);
+                continue;
+            }
+
+            List<StoreItem> availableItems = GetAvailableItemsForTier(tier, user.OwnedStoreItems);
+            productCounts.Add(availableItems.Count);
+            updateTimestamps.Add(unixTimestamp);
+        }
+
+        OrderedDictionary response = new()
         {
             ["status_code"] = 1,
-            ["tiers"] = tiersArray,
-            ["user_tickets"] = user.PlinkoTickets,
-            ["gold_cost"] = plinko.GoldCost,
-            ["ticket_cost"] = plinko.TicketCost,
-            ["amount_of_products"] = GetAmountOfProducts(tiers, user),
-            ["last_update_time"] = GetLastUpdateTimes(tiers),
-            ["user_gold"] = user.GoldCoins,
-            ["silver"] = user.SilverCoins
+            ["tiers"] = Configuration.TierLayout.Select(tierID => tierID.ToString()).ToArray(),
+            ["ticket_cost"] = Configuration.TicketCost.ToString(),
+            ["gold_cost"] = Configuration.GoldCost.ToString(),
+            ["user_gold"] = user.GoldCoins.ToString(),
+            ["silver"] = user.SilverCoins.ToString(),
+            ["user_tickets"] = user.PlinkoTickets.ToString(),
+            ["amount_of_products"] = string.Join(",", productCounts),
+            ["last_update_time"] = string.Join(",", updateTimestamps),
+            ["multi_drop_counts"] = string.Join(",", Configuration.AllowedMultiDropCounts)
         };
 
         return Ok(PhpSerialization.Serialize(response));
     }
 
+    #endregion
+
+    #region POST /master/casino/drop/ — Play Plinko
+
     [HttpPost("casino/drop/")]
     [Consumes("application/x-www-form-urlencoded")]
-    public async Task<IActionResult> PlinkoDrop()
+    public async Task<IActionResult> Drop()
     {
         string? cookie = Request.Form["cookie"];
 
@@ -100,127 +116,96 @@ public class PlinkoController(MerrickContext databaseContext, IDatabase distribu
 
         User user = account.User;
 
-        PlinkoConfiguration plinko = PlinkoConfig;
+        bool payingWithTickets = currency.Equals("tickets", StringComparison.OrdinalIgnoreCase);
+        bool payingWithGold = currency.Equals("gold", StringComparison.OrdinalIgnoreCase);
 
-        if (currency == "tickets")
-        {
-            if (user.PlinkoTickets < plinko.TicketCost)
-            {
-                return Ok(PhpSerialization.Serialize(new Dictionary<string, object>
-                {
-                    ["status_code"] = 0,
-                    ["error_message"] = "Not enough tickets"
-                }));
-            }
+        if (payingWithTickets is false && payingWithGold is false)
+            return BadRequest(@$"Invalid Currency Type ""{currency}""");
 
-            user.PlinkoTickets -= plinko.TicketCost;
-        }
-        else if (currency == "gold")
-        {
-            if (user.GoldCoins < plinko.GoldCost)
-            {
-                return Ok(PhpSerialization.Serialize(new Dictionary<string, object>
-                {
-                    ["status_code"] = 0,
-                    ["error_message"] = "Not enough gold coins"
-                }));
-            }
+        if (payingWithTickets && user.PlinkoTickets < Configuration.TicketCost)
+            return Ok(PhpSerialization.Serialize(new Dictionary<string, object> { ["status_code"] = 0 }));
 
-            user.GoldCoins -= plinko.GoldCost;
-        }
+        if (payingWithGold && user.GoldCoins < Configuration.GoldCost)
+            return Ok(PhpSerialization.Serialize(new Dictionary<string, object> { ["status_code"] = 0 }));
+
+        // Deduct The Cost
+        if (payingWithTickets)
+            user.PlinkoTickets -= Configuration.TicketCost;
         else
+            user.GoldCoins -= Configuration.GoldCost;
+
+        // Roll A Random Tier
+        PlinkoPrizeTier rolledTier = RollRandomTier();
+
+        OrderedDictionary response;
+
+        if (rolledTier.AwardsTickets)
         {
-            return BadRequest($@"Invalid Currency ""{currency}""");
-        }
+            // Award Tickets
+            user.PlinkoTickets += rolledTier.TicketAmount;
 
-        int winningTier = DetermineWinningTier(plinko.Tiers);
-        PlinkoTier tierConfig = plinko.Tiers[winningTier - 1];
-
-        Dictionary<string, object> response;
-
-        if (tierConfig.IsTicketTier)
-        {
-            user.PlinkoTickets += tierConfig.TicketAmount;
-
-            response = new Dictionary<string, object>
+            response = new OrderedDictionary
             {
-                ["user_tickets"] = user.PlinkoTickets,
-                ["user_gold"] = user.GoldCoins,
-                ["status_code"] = 1,
-                ["random_tier"] = winningTier,
-                ["product_id"] = -1,
+                ["user_tickets"] = user.PlinkoTickets.ToString(),
+                ["user_gold"] = user.GoldCoins.ToString(),
+                ["status_code"] = "1",
+                ["random_tier"] = rolledTier.TierID.ToString(),
+                ["product_id"] = "-1",
                 ["product_name"] = "Ticket",
                 ["product_type"] = "Ticket",
                 ["product_path"] = "Ticket",
                 ["products_exhausted"] = false,
-                ["ticket_amount"] = tierConfig.TicketAmount
+                ["ticket_amount"] = rolledTier.TicketAmount.ToString()
             };
         }
         else
         {
-            bool productsExhausted = AreProductsExhausted(tierConfig, user);
+            List<StoreItem> availableItems = GetAvailableItemsForTier(rolledTier, user.OwnedStoreItems);
 
-            if (productsExhausted)
+            if (availableItems.Count == 0)
             {
-                user.PlinkoTickets += tierConfig.TicketAmount;
+                // All Items In This Tier Are Owned; Award Fallback Tickets
+                user.PlinkoTickets += rolledTier.TicketAmount;
 
-                response = new Dictionary<string, object>
+                response = new OrderedDictionary
                 {
-                    ["user_tickets"] = user.PlinkoTickets,
-                    ["user_gold"] = user.GoldCoins,
-                    ["status_code"] = 1,
-                    ["random_tier"] = winningTier,
-                    ["product_id"] = -1,
+                    ["user_tickets"] = user.PlinkoTickets.ToString(),
+                    ["user_gold"] = user.GoldCoins.ToString(),
+                    ["status_code"] = "1",
+                    ["random_tier"] = rolledTier.TierID.ToString(),
+                    ["product_id"] = "-1",
                     ["product_name"] = "Ticket",
                     ["product_type"] = "Ticket",
                     ["product_path"] = "Ticket",
                     ["products_exhausted"] = true,
-                    ["ticket_amount"] = tierConfig.TicketAmount
+                    ["ticket_amount"] = rolledTier.TicketAmount.ToString()
                 };
             }
             else
             {
-                PlinkoProduct? product = SelectRandomProduct(tierConfig);
+                // Pick A Random Item From The Available Pool
+                StoreItem wonItem = availableItems[Random.Shared.Next(availableItems.Count)];
 
-                if (product is null)
+                // Grant The Item To The User
+                string ownedItemCode = GetOwnedItemCode(wonItem);
+                user.OwnedStoreItems.Add(ownedItemCode);
+
+                // Check If All Items In This Tier Are Now Exhausted
+                bool productsExhausted = availableItems.Count == 1;
+
+                response = new OrderedDictionary
                 {
-                    user.PlinkoTickets += tierConfig.TicketAmount;
-
-                    response = new Dictionary<string, object>
-                    {
-                        ["user_tickets"] = user.PlinkoTickets,
-                        ["user_gold"] = user.GoldCoins,
-                        ["status_code"] = 1,
-                        ["random_tier"] = winningTier,
-                        ["product_id"] = -1,
-                        ["product_name"] = "Ticket",
-                        ["product_type"] = "Ticket",
-                        ["product_path"] = "Ticket",
-                        ["products_exhausted"] = false,
-                        ["ticket_amount"] = tierConfig.TicketAmount
-                    };
-                }
-                else
-                {
-                    if (user.OwnedStoreItems.Contains(product.PrefixedCode).Equals(false))
-                    {
-                        user.OwnedStoreItems.Add(product.PrefixedCode);
-                    }
-
-                    response = new Dictionary<string, object>
-                    {
-                        ["user_tickets"] = user.PlinkoTickets,
-                        ["user_gold"] = user.GoldCoins,
-                        ["status_code"] = 1,
-                        ["random_tier"] = winningTier,
-                        ["product_id"] = product.ID,
-                        ["product_name"] = GetProductCode(product),
-                        ["product_type"] = MapStoreItemTypeToCategoryName(product.StoreItemType),
-                        ["product_path"] = GetProductDisplayPath(product),
-                        ["products_exhausted"] = false,
-                        ["ticket_amount"] = 0
-                    };
-                }
+                    ["user_tickets"] = user.PlinkoTickets.ToString(),
+                    ["user_gold"] = user.GoldCoins.ToString(),
+                    ["status_code"] = "1",
+                    ["random_tier"] = rolledTier.TierID.ToString(),
+                    ["product_id"] = wonItem.ID.ToString(),
+                    ["product_name"] = wonItem.Code,
+                    ["product_type"] = GetProductTypeDisplayName(wonItem),
+                    ["product_path"] = wonItem.Resource,
+                    ["products_exhausted"] = productsExhausted,
+                    ["ticket_amount"] = "0"
+                };
             }
         }
 
@@ -228,6 +213,77 @@ public class PlinkoController(MerrickContext databaseContext, IDatabase distribu
 
         return Ok(PhpSerialization.Serialize(response));
     }
+
+    #endregion
+
+    #region POST /master/casino/viewchest/ — View Chest Contents
+
+    [HttpPost("casino/viewchest/")]
+    [Consumes("application/x-www-form-urlencoded")]
+    public async Task<IActionResult> ViewChest()
+    {
+        string? cookie = Request.Form["cookie"];
+
+        if (cookie is null)
+            return BadRequest(@"Missing Value For Form Parameter ""cookie""");
+
+        string? tierIdString = Request.Form["tier_id"];
+
+        if (tierIdString is null)
+            return BadRequest(@"Missing Value For Form Parameter ""tier_id""");
+
+        if (int.TryParse(tierIdString, out int tierID) is false || tierID < 1 || tierID > 4)
+            return BadRequest(@$"Invalid Tier ID ""{tierIdString}""");
+
+        string? targetIndexString = Request.Form["target_index"];
+
+        if (targetIndexString is null)
+            return BadRequest(@"Missing Value For Form Parameter ""target_index""");
+
+        if (int.TryParse(targetIndexString, out int targetIndex) is false || targetIndex < 1)
+            return BadRequest(@$"Invalid Target Index ""{targetIndexString}""");
+
+        (bool isValid, string? accountName) = await DistributedCache.ValidateAccountSessionCookie(cookie);
+
+        if (isValid.Equals(false) || accountName is null)
+            return Unauthorized($@"Unrecognized Cookie ""{cookie}""");
+
+        Account account = await MerrickContext.Accounts
+            .Include(queriedAccount => queriedAccount.User)
+            .SingleAsync(queriedAccount => queriedAccount.Name.Equals(accountName));
+
+        User user = account.User;
+
+        PlinkoPrizeTier? tier = Configuration.PrizeTiers.SingleOrDefault(prizeTier => prizeTier.TierID == tierID);
+
+        if (tier is null || tier.AwardsTickets)
+            return BadRequest(@$"Tier ""{tierID}"" Does Not Have Viewable Items");
+
+        List<StoreItem> availableItems = GetAvailableItemsForTier(tier, user.OwnedStoreItems);
+
+        // Paginate: The Client Requests Pages Of Items, Each Page Contains Up To 56 Items
+        int pageSize = 56;
+        int firstItemIndex = Math.Max(0, targetIndex - 1);
+        List<StoreItem> pageItems = availableItems.Skip(firstItemIndex).Take(pageSize).ToList();
+
+        OrderedDictionary response = new()
+        {
+            ["tier_id"] = tierID,
+            ["items_amount"] = availableItems.Count,
+            ["first_item_index"] = firstItemIndex + 1,
+            ["target_index"] = targetIndex,
+            ["product_names"] = string.Join(",", pageItems.Select(item => item.Code)),
+            ["product_types"] = string.Join(",", pageItems.Select(item => GetProductTypeAbbreviation(item))),
+            ["product_paths"] = string.Join(",", pageItems.Select(item => item.Resource)),
+            ["product_ids"] = string.Join(",", pageItems.Select(item => item.ID))
+        };
+
+        return Ok(PhpSerialization.Serialize(response));
+    }
+
+    #endregion
+
+    #region POST /master/ticketexchange/ — Open Ticket Exchange
 
     [HttpPost("ticketexchange/")]
     [Consumes("application/x-www-form-urlencoded")]
@@ -254,12 +310,9 @@ public class PlinkoController(MerrickContext databaseContext, IDatabase distribu
 
         User user = account.User;
 
-        PlinkoConfiguration plinko = PlinkoConfig;
-        List<PlinkoExchangeItem> exchangeItems = plinko.ExchangeItems;
-
         List<Dictionary<string, object>> items = [];
 
-        foreach (PlinkoExchangeItem exchangeItem in exchangeItems)
+        foreach (PlinkoTicketExchangeItem exchangeItem in Configuration.TicketExchangeItems)
         {
             StoreItem? storeItem = StoreItems.GetByID(exchangeItem.ProductID);
 
@@ -268,24 +321,28 @@ public class PlinkoController(MerrickContext databaseContext, IDatabase distribu
 
             items.Add(new Dictionary<string, object>
             {
-                ["id"] = items.Count + 1,
-                ["cost"] = exchangeItem.TicketCost,
+                ["id"] = exchangeItem.ID,
+                ["cost"] = exchangeItem.Cost,
                 ["product_id"] = storeItem.ID,
                 ["name"] = storeItem.Code,
-                ["type"] = MapStoreItemTypeToCategoryName(storeItem.StoreItemType),
+                ["type"] = GetProductTypeDisplayName(storeItem),
                 ["local_path"] = storeItem.Resource
             });
         }
 
-        Dictionary<string, object> response = new ()
+        OrderedDictionary response = new()
         {
             ["status_code"] = 51,
             ["items"] = items,
-            ["user_tickets"] = user.PlinkoTickets
+            ["user_tickets"] = user.PlinkoTickets.ToString()
         };
 
         return Ok(PhpSerialization.Serialize(response));
     }
+
+    #endregion
+
+    #region POST /master/ticketexchange/purchase/ — Purchase With Tickets
 
     [HttpPost("ticketexchange/purchase/")]
     [Consumes("application/x-www-form-urlencoded")]
@@ -320,9 +377,7 @@ public class PlinkoController(MerrickContext databaseContext, IDatabase distribu
 
         User user = account.User;
 
-        PlinkoConfiguration plinko = PlinkoConfig;
-
-        PlinkoExchangeItem? exchangeItem = plinko.ExchangeItems.FirstOrDefault(item => item.ProductID == productId);
+        PlinkoTicketExchangeItem? exchangeItem = Configuration.TicketExchangeItems.FirstOrDefault(item => item.ProductID == productId);
 
         if (exchangeItem is null)
         {
@@ -333,7 +388,7 @@ public class PlinkoController(MerrickContext databaseContext, IDatabase distribu
             }));
         }
 
-        if (user.PlinkoTickets < exchangeItem.TicketCost)
+        if (user.PlinkoTickets < exchangeItem.Cost)
         {
             return Ok(PhpSerialization.Serialize(new Dictionary<string, object>
             {
@@ -353,253 +408,109 @@ public class PlinkoController(MerrickContext databaseContext, IDatabase distribu
             }));
         }
 
-        user.PlinkoTickets -= exchangeItem.TicketCost;
+        user.PlinkoTickets -= exchangeItem.Cost;
 
-        if (user.OwnedStoreItems.Contains(storeItem.PrefixedCode).Equals(false))
+        string ownedItemCode = GetOwnedItemCode(storeItem);
+        if (user.OwnedStoreItems.Contains(ownedItemCode).Equals(false))
         {
-            user.OwnedStoreItems.Add(storeItem.PrefixedCode);
+            user.OwnedStoreItems.Add(ownedItemCode);
         }
 
         await MerrickContext.SaveChangesAsync();
 
-        Dictionary<string, object> response = new ()
+        OrderedDictionary response = new()
         {
             ["status_code"] = 51,
-            ["tickets_remaining"] = user.PlinkoTickets,
+            ["tickets_remaining"] = user.PlinkoTickets.ToString(),
             ["grabBag"] = false
         };
 
         return Ok(PhpSerialization.Serialize(response));
     }
 
-    [HttpPost("casino/viewchest/")]
-    [Consumes("application/x-www-form-urlencoded")]
-    public async Task<IActionResult> ViewChest()
-    {
-        string? cookie = Request.Form["cookie"];
-
-        if (cookie is null)
-            return BadRequest(@"Missing Value For Form Parameter ""cookie""");
-
-        string? tierIdString = Request.Form["tier_id"];
-
-        if (tierIdString is null)
-            return BadRequest(@"Missing Value For Form Parameter ""tier_id""");
-
-        if (int.TryParse(tierIdString, out int tierId).Equals(false))
-            return BadRequest(@"Invalid Value For Form Parameter ""tier_id""");
-
-        string? targetIndexString = Request.Form["target_index"];
-
-        if (targetIndexString is null)
-            return BadRequest(@"Missing Value For Form Parameter ""target_index""");
-
-        if (int.TryParse(targetIndexString, out int targetIndex).Equals(false))
-            return BadRequest(@"Invalid Value For Form Parameter ""target_index""");
-
-        (bool isValid, string? accountName) = await DistributedCache.ValidateAccountSessionCookie(cookie);
-
-        if (isValid.Equals(false) || accountName is null)
-            return Unauthorized($@"Unrecognized Cookie ""{cookie}""");
-
-        PlinkoConfiguration plinko = PlinkoConfig;
-
-        // Client sends tier number (1=Diamond, 2=Gold, 3=Silver, 4=Bronze, 5=60 tickets, 6=30 tickets).
-        if (tierId < 1 || tierId > plinko.Tiers.Count)
-        {
-            return BadRequest($@"Invalid Tier ID ""{tierId}""");
-        }
-
-        PlinkoTier tier = plinko.Tiers[tierId - 1];
-
-        if (tier.IsTicketTier)
-        {
-            return Ok(PhpSerialization.Serialize(new Dictionary<string, object>
-            {
-                ["tier_id"] = tierId,
-                ["items_amount"] = 0,
-                ["first_item_index"] = 1,
-                ["target_index"] = targetIndex
-            }));
-        }
-
-        List<PlinkoProduct> products = tier.Products;
-
-        int itemsPerPage = 4;
-        int totalItems = products.Count;
-
-        // targetIndex is the 1-based item index to start from
-        targetIndex = Math.Max(1, Math.Min(targetIndex, Math.Max(1, totalItems)));
-
-        // Convert to 0-based index for slicing
-        int startIndex = targetIndex - 1;
-        int endIndex = Math.Min(startIndex + itemsPerPage, totalItems);
-
-        List<PlinkoProduct> pageProducts = products.Count > 0 && startIndex < totalItems
-            ? products.GetRange(startIndex, endIndex - startIndex)
-            : [];
-
-        List<string> productNames = [];
-        List<string> productTypes = [];
-        List<string> productPaths = [];
-        List<string> productIds = [];
-
-        foreach (PlinkoProduct product in pageProducts)
-        {
-            productNames.Add(GetProductCode(product));
-            productTypes.Add(MapStoreItemTypeToShortCode(product.StoreItemType));
-            productPaths.Add(GetProductDisplayPath(product));
-            productIds.Add(product.ID.ToString());
-        }
-
-        Dictionary<string, object> response = new ()
-        {
-            ["tier_id"] = tierId,
-            ["items_amount"] = totalItems,
-            ["first_item_index"] = startIndex + 1,
-            ["target_index"] = targetIndex,
-            ["product_names"] = string.Join(",", productNames),
-            ["product_types"] = string.Join(",", productTypes),
-            ["product_paths"] = string.Join(",", productPaths),
-            ["product_ids"] = string.Join(",", productIds)
-        };
-
-        return Ok(PhpSerialization.Serialize(response));
-    }
+    #endregion
 
     #region Helper Methods
 
-    /// <summary>
-    ///     Returns the product code (e.g. "Hero_Pyromancer.Female") that the client uses to resolve the icon/model. HoN Revival viewchest response uses codes in "product_names", not display names.
-    /// </summary>
-    private static string GetProductCode(PlinkoProduct product)
+    private static List<StoreItem> GetAvailableItemsForTier(PlinkoPrizeTier tier, List<string> ownedStoreItems)
     {
-        StoreItem? storeItem = StoreItems.GetByID(product.ID);
-        if (storeItem is not null)
-            return storeItem.Code;
-        int dotIndex = product.PrefixedCode.IndexOf('.');
-        return dotIndex >= 0 ? product.PrefixedCode[(dotIndex + 1)..] : product.PrefixedCode;
+        return StoreItems.StoreItems
+            .Where(item => item.IsEnabled && item.IsBundle is false && item.Purchasable)
+            .Where(item => item.GoldCost >= tier.MinimumGoldCost && item.GoldCost <= tier.MaximumGoldCost)
+            .Where(item => tier.PremiumOnly is false || item.IsPremium)
+            .Where(item => ownedStoreItems.Contains(GetOwnedItemCode(item)) is false)
+            .OrderByDescending(item => item.ID)
+            .ToList();
     }
 
-    /// <summary>
-    ///     Returns the path the client uses to load the product icon/model. Prefers the store item "Resource" when the product exists in the store so the plinko UI loads the same texture as the store.
-    /// </summary>
-    private static string GetProductDisplayPath(PlinkoProduct product)
+    private static PlinkoPrizeTier RollRandomTier()
     {
-        StoreItem? storeItem = StoreItems.GetByID(product.ID);
-        return storeItem?.Resource ?? product.LocalPath;
-    }
+        int totalWeight = Configuration.PrizeTiers.Sum(tier => tier.Weight);
+        int roll = Random.Shared.Next(totalWeight);
+        int cumulativeWeight = 0;
 
-    /// <summary>
-    ///     Returns tier numbers in UI display order (slot 0 = first bucket, etc.). Maps to PHP array in GetPlinkoInfo response.
-    /// </summary>
-    private static List<string> GetTiersDisplayOrder(List<PlinkoTier> tiers)
-    {
-        int[] displayOrder = new int[] { 5, 3, 4, 1, 6, 2 };
-        return displayOrder.Take(tiers.Count).Select(tierNumber => tierNumber.ToString()).ToList();
-    }
-
-    private static string GetAmountOfProducts(List<PlinkoTier> tiers, User user)
-    {
-        // Display order matches GetTiersDisplayOrder: 5,3,4,1,6,2
-        int[] displayOrder = new int[] { 5, 3, 4, 1, 6, 2 };
-        List<string> amounts = [];
-
-        foreach (int tierIndex in displayOrder.Take(tiers.Count))
+        foreach (PlinkoPrizeTier tier in Configuration.PrizeTiers)
         {
-            PlinkoTier tier = tiers[tierIndex - 1];
-            
-            if (tier.IsTicketTier)
-            {
-                amounts.Add("0");
-            }
-            else
-            {
-                int availableCount = tier.Products.Count(p => !user.OwnedStoreItems.Contains(p.PrefixedCode));
-                amounts.Add(availableCount.ToString());
-            }
+            cumulativeWeight += tier.Weight;
+
+            if (roll < cumulativeWeight)
+                return tier;
         }
 
-        return string.Join(",", amounts);
+        // Fallback (Should Never Happen)
+        return Configuration.PrizeTiers.Last();
     }
 
-    private static string GetLastUpdateTimes(List<PlinkoTier> tiers)
+    /// <summary>
+    /// Constructs the owned-item code for a store item by combining its type prefix with its code.
+    /// </summary>
+    private static string GetOwnedItemCode(StoreItem item)
     {
-        // Display order matches GetTiersDisplayOrder: 5,3,4,1,6,2
-        int[] displayOrder = new int[] { 5, 3, 4, 1, 6, 2 };
-        long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-        return string.Join(",", displayOrder.Take(tiers.Count).Select(_ => now.ToString()));
+        string prefix = GetProductTypeAbbreviation(item);
+
+        return string.IsNullOrEmpty(prefix) ? item.Code : $"{prefix}.{item.Code}";
     }
 
-    private static int DetermineWinningTier(List<PlinkoTier> tiers)
+    /// <summary>
+    /// Maps a store item's type to its short prefix code used in the owned-items list and product type responses.
+    /// </summary>
+    private static string GetProductTypeAbbreviation(StoreItem item) => item.StoreItemType switch
     {
-        double roll = RandomInstance.NextDouble() * 100;
-
-        double cumulativeProbability = 0;
-
-        for (int i = 0; i < tiers.Count; i++)
-        {
-            cumulativeProbability += tiers[i].Probability;
-
-            if (roll < cumulativeProbability)
-            {
-                return i + 1;
-            }
-        }
-
-        return tiers.Count;
-    }
-
-    private static bool AreProductsExhausted(PlinkoTier tier, User user)
-    {
-        if (tier.IsTicketTier)
-            return false;
-
-        return tier.Products.All(product => user.OwnedStoreItems.Contains(product.PrefixedCode));
-    }
-
-    private static PlinkoProduct? SelectRandomProduct(PlinkoTier tier)
-    {
-        if (tier.IsTicketTier || tier.Products.Count == 0)
-            return null;
-
-        return tier.Products[RandomInstance.Next(tier.Products.Count)];
-    }
-
-    private static string MapStoreItemTypeToCategoryName(StoreItemType type) => type switch
-    {
-        StoreItemType.AlternativeAvatar  => "Alt Avatar",
-        StoreItemType.AnnouncerVoice    => "Alt Announcement",
-        StoreItemType.Courier           => "Couriers",
-        StoreItemType.Hero              => "Hero",
-        StoreItemType.Ward              => "Ward",
-        StoreItemType.Taunt             => "Taunt",
-        StoreItemType.Miscellaneous     => "Misc",
-        StoreItemType.EarlyAccessProduct => "EAP",
-        StoreItemType.ChatNameColour    => "Name Color",
-        StoreItemType.ChatSymbol        => "Symbol",
-        StoreItemType.AccountIcon       => "Account Icon",
-        StoreItemType.Enhancement       => "Enhancement",
-        StoreItemType.Mastery           => "Mastery",
-        _                               => "Misc"
+        StoreItemType.ChatNameColour  => "cc",
+        StoreItemType.ChatSymbol      => "cs",
+        StoreItemType.AccountIcon     => "ai",
+        StoreItemType.AlternativeAvatar => "aa",
+        StoreItemType.AnnouncerVoice => "av",
+        StoreItemType.Taunt           => "t",
+        StoreItemType.Courier         => "c",
+        StoreItemType.Miscellaneous   => "m",
+        StoreItemType.Ward            => "w",
+        StoreItemType.Enhancement     => "en",
+        StoreItemType.Creep           => "cr",
+        StoreItemType.TeleportEffect  => "te",
+        StoreItemType.SelectionCircle => "sc",
+        _                             => string.Empty
     };
 
-    private static string MapStoreItemTypeToShortCode(StoreItemType type) => type switch
+    /// <summary>
+    /// Maps a store item's type to its human-readable display name used in the product type response field.
+    /// </summary>
+    private static string GetProductTypeDisplayName(StoreItem item) => item.StoreItemType switch
     {
-        StoreItemType.AlternativeAvatar  => "aa",
-        StoreItemType.AnnouncerVoice    => "av",
-        StoreItemType.Courier           => "cc",
-        StoreItemType.Hero              => "he",
-        StoreItemType.Ward              => "wd",
-        StoreItemType.Taunt             => "t",
-        StoreItemType.Miscellaneous     => "mi",
-        StoreItemType.EarlyAccessProduct => "ea",
-        StoreItemType.ChatNameColour    => "nc",
-        StoreItemType.ChatSymbol        => "sy",
-        StoreItemType.AccountIcon       => "ai",
-        StoreItemType.Enhancement       => "en",
-        StoreItemType.Mastery           => "ma",
-        _                               => "mi"
+        StoreItemType.ChatNameColour    => "Name Color",
+        StoreItemType.ChatSymbol        => "Chat Symbol",
+        StoreItemType.AccountIcon       => "Account Icon",
+        StoreItemType.AlternativeAvatar => "Alt Avatar",
+        StoreItemType.AnnouncerVoice    => "Alt Announcement",
+        StoreItemType.Taunt             => "Taunt",
+        StoreItemType.Courier           => "Courier",
+        StoreItemType.Miscellaneous     => "Misc",
+        StoreItemType.Ward              => "Ward",
+        StoreItemType.Enhancement       => "Enhancement",
+        StoreItemType.Creep             => "Creep",
+        StoreItemType.TeleportEffect    => "Teleportation Effect",
+        StoreItemType.SelectionCircle   => "Selection Circle",
+        _                              => "Misc"
     };
 
     #endregion

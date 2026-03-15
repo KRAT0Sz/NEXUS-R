@@ -1,420 +1,113 @@
 {
-  "TicketCost": 55,
-  "GoldCost": 30,
-  "Tiers": [
-    {
-      "Name": "Diamond Chest",
-      "Probability": 2,
-      "IsTicketTier": false,
-      "TicketAmount": 350,
-      "Products": [
+    "TicketCost": 55,
+    "GoldCost": 30,
+    "TierLayout": [5, 3, 4, 1, 6, 2],
+    "PrizeTiers": [
         {
-          "ID": 15,
-          "Name": "Female Pyromancer",
-          "PrefixedCode": "aa.Hero_Pyromancer.Female",
-          "LocalPath": "/heroes/pyromancer/alt/icon.tga",
-          "StoreItemType": 3
+            "TierID": 1,
+            "Weight": 2,
+            "AwardsTickets": false,
+            "TicketAmount": 350,
+            "MinimumGoldCost": 0,
+            "MaximumGoldCost": 2147483647,
+            "PremiumOnly": true
         },
         {
-          "ID": 16,
-          "Name": "Sexy Moon Queen",
-          "PrefixedCode": "aa.Hero_Krixi.Sexy",
-          "LocalPath": "/heroes/krixi/alt/icon.tga",
-          "StoreItemType": 3
+            "TierID": 2,
+            "Weight": 4,
+            "AwardsTickets": false,
+            "TicketAmount": 225,
+            "MinimumGoldCost": 0,
+            "MaximumGoldCost": 2147483647,
+            "PremiumOnly": true
         },
         {
-          "ID": 18,
-          "Name": "Scorpion Magmus",
-          "PrefixedCode": "aa.Hero_Magmar.Scorpion",
-          "LocalPath": "/heroes/magmar/alt/icon.tga",
-          "StoreItemType": 3
+            "TierID": 3,
+            "Weight": 20,
+            "AwardsTickets": false,
+            "TicketAmount": 100,
+            "MinimumGoldCost": 352,
+            "MaximumGoldCost": 2147483647,
+            "PremiumOnly": false
         },
         {
-          "ID": 1407,
-          "Name": "King Animus",
-          "PrefixedCode": "aa.Hero_Solstice.Alt3",
-          "LocalPath": "/heroes/solstice/alt3/icon.tga",
-          "StoreItemType": 3
+            "TierID": 4,
+            "Weight": 25,
+            "AwardsTickets": false,
+            "TicketAmount": 80,
+            "MinimumGoldCost": 99,
+            "MaximumGoldCost": 351,
+            "PremiumOnly": false
         },
         {
-          "ID": 1438,
-          "Name": "Red Raja",
-          "PrefixedCode": "aa.Hero_Nomad.Alt3",
-          "LocalPath": "/heroes/nomad/alt3/icon.tga",
-          "StoreItemType": 3
+            "TierID": 5,
+            "Weight": 15,
+            "AwardsTickets": true,
+            "TicketAmount": 55
         },
         {
-          "ID": 3105,
-          "Name": "MadCat Madman",
-          "PrefixedCode": "aa.Hero_Scar.Alt5",
-          "LocalPath": "/heroes/scar/alt5/icon.tga",
-          "StoreItemType": 3
-        },
-        {
-          "ID": 959,
-          "Name": "Panda Courier",
-          "PrefixedCode": "c.panda_courier",
-          "LocalPath": "/shared/automated_courier/couriers/panda_fly/icon.tga",
-          "StoreItemType": 6
-        },
-        {
-          "ID": 960,
-          "Name": "Kongor Kourier",
-          "PrefixedCode": "c.kongor_courier",
-          "LocalPath": "/shared/automated_courier/couriers/kongor_fly/icon.tga",
-          "StoreItemType": 6
-        },
-        {
-          "ID": 486,
-          "Name": "Goblin Courier",
-          "PrefixedCode": "c.goblin_courier",
-          "LocalPath": "/shared/automated_courier/couriers/goblin_fly/icon.tga",
-          "StoreItemType": 6
-        },
-        {
-          "ID": 1192,
-          "Name": "Garena Courier",
-          "PrefixedCode": "c.garena_courier",
-          "LocalPath": "/shared/automated_courier/couriers/garena_fly/icon.tga",
-          "StoreItemType": 6
+            "TierID": 6,
+            "Weight": 34,
+            "AwardsTickets": true,
+            "TicketAmount": 30
         }
-      ]
-    },
-    {
-      "Name": "Gold Chest",
-      "Probability": 4,
-      "IsTicketTier": false,
-      "TicketAmount": 225,
-      "Products": [
+    ],
+    "AllowedMultiDropCounts": [5, 10],
+    "TicketExchangeItems": [
         {
-          "ID": 17,
-          "Name": "Pollywog Chieftain",
-          "PrefixedCode": "aa.Hero_PollywogPriest.Chieftain",
-          "LocalPath": "/heroes/pollywogpriest/alt/hero.tga",
-          "StoreItemType": 3
+            "ID": 1,
+            "Cost": 1300,
+            "ProductID": 1792
         },
         {
-          "ID": 19,
-          "Name": "Female Glacius",
-          "PrefixedCode": "aa.Hero_Frosty.Female",
-          "LocalPath": "/heroes/frosty/alt/icon.tga",
-          "StoreItemType": 3
+            "ID": 2,
+            "Cost": 1300,
+            "ProductID": 2740
         },
         {
-          "ID": 1200,
-          "Name": "Shibo Shinobi",
-          "PrefixedCode": "aa.Hero_Devourer.Alt3",
-          "LocalPath": "/heroes/devourer/alt3/icon.tga",
-          "StoreItemType": 3
+            "ID": 3,
+            "Cost": 1300,
+            "ProductID": 2840
         },
         {
-          "ID": 451,
-          "Name": "Ladybug Pestilence",
-          "PrefixedCode": "aa.Hero_Pestilence.Alt",
-          "LocalPath": "/heroes/pestilence/alt/icon.tga",
-          "StoreItemType": 3
+            "ID": 4,
+            "Cost": 1300,
+            "ProductID": 2898
         },
         {
-          "ID": 454,
-          "Name": "Wretched Hottie",
-          "PrefixedCode": "aa.Hero_BabaYaga.Alt",
-          "LocalPath": "/heroes/babayaga/alt/icon.tga",
-          "StoreItemType": 3
+            "ID": 5,
+            "Cost": 1300,
+            "ProductID": 2944
         },
         {
-          "ID": 462,
-          "Name": "Penguin Courier",
-          "PrefixedCode": "c.penguin_courier",
-          "LocalPath": "/shared/automated_courier/couriers/Penguin_fly/icon.tga",
-          "StoreItemType": 6
+            "ID": 6,
+            "Cost": 1300,
+            "ProductID": 3009
         },
         {
-          "ID": 463,
-          "Name": "Whelp Courier",
-          "PrefixedCode": "c.whelp_courier",
-          "LocalPath": "/shared/automated_courier/couriers/whelp/icon.tga",
-          "StoreItemType": 6
+            "ID": 7,
+            "Cost": 1300,
+            "ProductID": 3075
         },
         {
-          "ID": 487,
-          "Name": "Pig Courier",
-          "PrefixedCode": "c.pig_courier",
-          "LocalPath": "/shared/automated_courier/couriers/pig_fly/icon.tga",
-          "StoreItemType": 6
+            "ID": 8,
+            "Cost": 1300,
+            "ProductID": 3113
         },
         {
-          "ID": 488,
-          "Name": "Bat Courier",
-          "PrefixedCode": "c.bat_courier",
-          "LocalPath": "/shared/automated_courier/couriers/rat_fly/icon.tga",
-          "StoreItemType": 6
+            "ID": 9,
+            "Cost": 1300,
+            "ProductID": 3191
         },
         {
-          "ID": 489,
-          "Name": "Robot Courier",
-          "PrefixedCode": "c.robot_courier",
-          "LocalPath": "/shared/automated_courier/couriers/ufo/icon.tga",
-          "StoreItemType": 6
+            "ID": 10,
+            "Cost": 1300,
+            "ProductID": 3241
+        },
+        {
+            "ID": 11,
+            "Cost": 700,
+            "ProductID": 5397
         }
-      ]
-    },
-    {
-      "Name": "Silver Chest",
-      "Probability": 20,
-      "IsTicketTier": false,
-      "TicketAmount": 100,
-      "Products": [
-        {
-          "ID": 26,
-          "Name": "Raven Soulstealer",
-          "PrefixedCode": "aa.Hero_Soulstealer.Alt",
-          "LocalPath": "/heroes/soulstealer/alt/icon.tga",
-          "StoreItemType": 3
-        },
-        {
-          "ID": 27,
-          "Name": "Cannon Bombardier",
-          "PrefixedCode": "aa.Hero_Bombardier.Alt",
-          "LocalPath": "/heroes/bomb/alt/icon.tga",
-          "StoreItemType": 3
-        },
-        {
-          "ID": 28,
-          "Name": "Nightmare Madman",
-          "PrefixedCode": "aa.Hero_Scar.Scary",
-          "LocalPath": "/heroes/scar/alt/icon.tga",
-          "StoreItemType": 3
-        },
-        {
-          "ID": 29,
-          "Name": "Clown Devourer",
-          "PrefixedCode": "aa.Hero_Devourer.Clown",
-          "LocalPath": "/heroes/devourer/clown/icon.tga",
-          "StoreItemType": 3
-        },
-        {
-          "ID": 30,
-          "Name": "Angelic Succubus",
-          "PrefixedCode": "aa.Hero_Succubis.Angel",
-          "LocalPath": "/heroes/succubis/angel/icon.tga",
-          "StoreItemType": 3
-        },
-        {
-          "ID": 31,
-          "Name": "Naughty Succubus",
-          "PrefixedCode": "aa.Hero_Succubis.Naughty",
-          "LocalPath": "/heroes/succubis/alt_1/icon.tga",
-          "StoreItemType": 3
-        },
-        {
-          "ID": 32,
-          "Name": "Pimp Slayer",
-          "PrefixedCode": "aa.Hero_WitchSlayer.Pimp",
-          "LocalPath": "/heroes/witch_slayer/pimp/icon.tga",
-          "StoreItemType": 3
-        },
-        {
-          "ID": 33,
-          "Name": "El Guantelete",
-          "PrefixedCode": "aa.Hero_Gauntlet.Alt",
-          "LocalPath": "/heroes/gauntlet/alt/icon.tga",
-          "StoreItemType": 3
-        },
-        {
-          "ID": 34,
-          "Name": "Ninja Bubbles",
-          "PrefixedCode": "aa.Hero_Bubbles.Alt",
-          "LocalPath": "/heroes/bubbles/alt/icon.tga",
-          "StoreItemType": 3
-        },
-        {
-          "ID": 35,
-          "Name": "Adventure Gladiator",
-          "PrefixedCode": "aa.Hero_Gladiator.Alt",
-          "LocalPath": "/heroes/gladiator/alt/icon.tga",
-          "StoreItemType": 3
-        }
-      ]
-    },
-    {
-      "Name": "Bronze Chest",
-      "Probability": 25,
-      "IsTicketTier": false,
-      "TicketAmount": 80,
-      "Products": [
-        {
-          "ID": 38,
-          "Name": "Teen Hound",
-          "PrefixedCode": "aa.Hero_Hantumon.Alt",
-          "LocalPath": "/heroes/hantumon/alt/icon.tga",
-          "StoreItemType": 3
-        },
-        {
-          "ID": 39,
-          "Name": "Captain Flint",
-          "PrefixedCode": "aa.Hero_FlintBeastwood.Alt",
-          "LocalPath": "/heroes/flint_beastwood/alt/icon.tga",
-          "StoreItemType": 3
-        },
-        {
-          "ID": 455,
-          "Name": "White Lotus Silhouette",
-          "PrefixedCode": "aa.Hero_Silhouette.Alt",
-          "LocalPath": "/heroes/silhouette/alt/icon.tga",
-          "StoreItemType": 3
-        },
-        {
-          "ID": 456,
-          "Name": "Bunny Predator",
-          "PrefixedCode": "aa.Hero_Predator.Alt",
-          "LocalPath": "/heroes/predator/alt/icon.tga",
-          "StoreItemType": 3
-        },
-        {
-          "ID": 450,
-          "Name": "Hero- Nomad",
-          "PrefixedCode": "h.Nomad",
-          "LocalPath": "/heroes/nomad/icon.tga",
-          "StoreItemType": 7
-        },
-        {
-          "ID": 453,
-          "Name": "Hero- Silhouette",
-          "PrefixedCode": "h.Silhouette",
-          "LocalPath": "/heroes/silhouette/icon.tga",
-          "StoreItemType": 7
-        },
-        {
-          "ID": 118,
-          "Name": "Hero- Keeper of the Forest",
-          "PrefixedCode": "h.KeeperoftheForest",
-          "LocalPath": "/heroes/forestkeeper/icon.tga",
-          "StoreItemType": 7
-        },
-        {
-          "ID": 119,
-          "Name": "Hero- Legionnaire",
-          "PrefixedCode": "h.Legionnaire",
-          "LocalPath": "/heroes/legionnaire/icon.tga",
-          "StoreItemType": 7
-        }
-      ]
-    },
-    {
-      "Name": "60 Tickets",
-      "Probability": 15,
-      "IsTicketTier": true,
-      "TicketAmount": 60,
-      "Products": []
-    },
-    {
-      "Name": "30 Tickets",
-      "Probability": 34,
-      "IsTicketTier": true,
-      "TicketAmount": 30,
-      "Products": []
-    }
-  ],
-  "ExchangeItems": [
-    {
-      "ProductID": 15,
-      "TicketCost": 500
-    },
-    {
-      "ProductID": 16,
-      "TicketCost": 500
-    },
-    {
-      "ProductID": 18,
-      "TicketCost": 500
-    },
-    {
-      "ProductID": 959,
-      "TicketCost": 600
-    },
-    {
-      "ProductID": 960,
-      "TicketCost": 800
-    },
-    {
-      "ProductID": 17,
-      "TicketCost": 400
-    },
-    {
-      "ProductID": 19,
-      "TicketCost": 400
-    },
-    {
-      "ProductID": 462,
-      "TicketCost": 350
-    },
-    {
-      "ProductID": 463,
-      "TicketCost": 350
-    },
-    {
-      "ProductID": 26,
-      "TicketCost": 300
-    },
-    {
-      "ProductID": 27,
-      "TicketCost": 300
-    },
-    {
-      "ProductID": 28,
-      "TicketCost": 280
-    },
-    {
-      "ProductID": 29,
-      "TicketCost": 280
-    },
-    {
-      "ProductID": 30,
-      "TicketCost": 300
-    },
-    {
-      "ProductID": 31,
-      "TicketCost": 250
-    },
-    {
-      "ProductID": 32,
-      "TicketCost": 300
-    },
-    {
-      "ProductID": 33,
-      "TicketCost": 250
-    },
-    {
-      "ProductID": 34,
-      "TicketCost": 300
-    },
-    {
-      "ProductID": 35,
-      "TicketCost": 250
-    },
-    {
-      "ProductID": 38,
-      "TicketCost": 250
-    },
-    {
-      "ProductID": 39,
-      "TicketCost": 250
-    },
-    {
-      "ProductID": 486,
-      "TicketCost": 350
-    },
-    {
-      "ProductID": 487,
-      "TicketCost": 300
-    },
-    {
-      "ProductID": 488,
-      "TicketCost": 300
-    },
-    {
-      "ProductID": 489,
-      "TicketCost": 300
-    }
-  ]
+    ]
 }
