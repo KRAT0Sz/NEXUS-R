@@ -1,9 +1,18 @@
-﻿namespace KONGOR.MasterServer.Controllers.Ascension;
+namespace KONGOR.MasterServer.Controllers.Ascension;
+
+using System.Text.Json;
+using MERRICK.DatabaseContext.Enumerations;
+using MERRICK.DatabaseContext.Persistence;
+using StackExchange.Redis;
 
 [ApiController]
 [Route(TextConstant.EmptyString)]
-public class AscensionController : ControllerBase
+public class AscensionController(MerrickContext databaseContext, IDatabase distributedCache, ILogger<AscensionController> logger) : ControllerBase
 {
+    private MerrickContext DatabaseContext { get; } = databaseContext;
+    private IDatabase DistributedCache { get; } = distributedCache;
+    private ILogger Logger { get; } = logger;
+
     /// <summary>
     ///     Routes ascension API requests based on the "r" query parameter.
     ///     This endpoint handles all client.sea.heroesofnewerth.com requests.
@@ -63,7 +72,25 @@ public class AscensionController : ControllerBase
     /// </remarks>
     private IActionResult ChangeMatchStatus()
     {
-        // TODO: Implement Match Status Tracking
+        string? matchID = Request.Query["match_id"].SingleOrDefault();
+        string? statusString = Request.Query["status"].SingleOrDefault();
+
+        if (string.IsNullOrEmpty(matchID))
+            return BadRequest(new { error_code = 400, message = @"Missing Required Parameter ""match_id""" });
+
+        if (string.IsNullOrEmpty(statusString))
+            return BadRequest(new { error_code = 400, message = @"Missing Required Parameter ""status""" });
+
+        if (int.TryParse(statusString, out int status).Equals(false))
+            return BadRequest(new { error_code = 400, message = @"Invalid Parameter ""status""" });
+
+        if (status is < 0 or > 3)
+            return BadRequest(new { error_code = 400, message = @"Invalid Parameter ""status""" });
+
+        string cacheKey = $"Ascension:MatchStatus:{matchID}";
+        DistributedCache.StringSet(cacheKey, status, TimeSpan.FromHours(24));
+
+        Logger.LogInformation("Match {MatchID} status changed to {Status}", matchID, status);
 
         return Ok(new { error_code = 100 });
     }
@@ -77,9 +104,25 @@ public class AscensionController : ControllerBase
     /// </remarks>
     private IActionResult CheckUserRole()
     {
-        // TODO: Implement Role Checking Against Account Data
+        string? accountIDString = Request.Query["account_id"].SingleOrDefault();
 
-        return Ok(new { error_code = 100, role = "0" });
+        if (string.IsNullOrEmpty(accountIDString))
+            return BadRequest(new { error_code = 400, message = @"Missing Required Parameter ""account_id""" });
+
+        if (int.TryParse(accountIDString, out int accountID).Equals(false))
+            return BadRequest(new { error_code = 400, message = @"Invalid Parameter ""account_id""" });
+
+        Account? account = DatabaseContext.Accounts.SingleOrDefault(queriedAccount => queriedAccount.ID == accountID);
+
+        if (account is null)
+            return NotFound(new { error_code = 404, message = $@"Account With ID ""{accountID}"" Not Found" });
+
+        bool hasSpecialRole = account.Type is AccountType.GameMaster
+            or AccountType.MatchModerator
+            or AccountType.MatchCaster
+            or AccountType.Staff;
+
+        return Ok(new { error_code = 100, role = hasSpecialRole ? "2" : "0" });
     }
 
     /// <summary>
@@ -90,7 +133,51 @@ public class AscensionController : ControllerBase
     /// </remarks>
     private IActionResult ReceiveMatchResult()
     {
-        // TODO: Implement Match Result Processing
+        string? matchID = Request.Query["match_id"].SingleOrDefault();
+
+        if (string.IsNullOrEmpty(matchID))
+            return BadRequest(new { error_code = 400, message = @"Missing Required Parameter ""match_id""" });
+
+        int? winningTeam = null;
+        int? firstBloodTeam = null;
+        int? firstTowerTeam = null;
+        int? firstTenKillTeam = null;
+
+        if (Request.HasFormContentType)
+        {
+            string? winningTeamString = Request.Form["winning_team"].SingleOrDefault();
+            string? firstBloodTeamString = Request.Form["first_blood_team"].SingleOrDefault();
+            string? firstTowerTeamString = Request.Form["first_tower_team"].SingleOrDefault();
+            string? firstTenKillTeamString = Request.Form["first_10kill_team"].SingleOrDefault();
+
+            if (int.TryParse(winningTeamString, out int wt))
+                winningTeam = wt;
+
+            if (int.TryParse(firstBloodTeamString, out int fbt))
+                firstBloodTeam = fbt;
+
+            if (int.TryParse(firstTowerTeamString, out int ftt))
+                firstTowerTeam = ftt;
+
+            if (int.TryParse(firstTenKillTeamString, out int ftkt))
+                firstTenKillTeam = ftkt;
+        }
+
+        string cacheKey = $"Ascension:MatchResult:{matchID}";
+        var matchResult = new
+        {
+            MatchID = matchID,
+            WinningTeam = winningTeam,
+            FirstBloodTeam = firstBloodTeam,
+            FirstTowerTeam = firstTowerTeam,
+            FirstTenKillTeam = firstTenKillTeam,
+            Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
+        };
+
+        DistributedCache.StringSet(cacheKey, JsonSerializer.Serialize(matchResult), TimeSpan.FromDays(30));
+
+        Logger.LogInformation("Received match result for match {MatchID}: winning_team={WinningTeam}, first_blood_team={FirstBloodTeam}, first_tower_team={FirstTowerTeam}, first_10kill_team={FirstTenKillTeam}",
+            matchID, winningTeam, firstBloodTeam, firstTowerTeam, firstTenKillTeam);
 
         return Ok(new { error_code = 100 });
     }
@@ -105,7 +192,32 @@ public class AscensionController : ControllerBase
     /// </remarks>
     private IActionResult ReceiveMatchStatistics()
     {
-        // TODO: Implement Live Match Statistics Processing
+        string? matchID = Request.Query["match_id"].SingleOrDefault();
+
+        if (string.IsNullOrEmpty(matchID))
+            return BadRequest(new { error_code = 400, message = @"Missing Required Parameter ""match_id""" });
+
+        if (Request.HasFormContentType)
+        {
+            string? dataJson = Request.Form["data"].SingleOrDefault();
+
+            if (string.IsNullOrEmpty(dataJson).Equals(false))
+            {
+                try
+                {
+                    string cacheKey = $"Ascension:MatchStats:{matchID}";
+                    DistributedCache.StringSet(cacheKey, dataJson, TimeSpan.FromHours(2));
+
+                    Logger.LogDebug("Received match statistics update for match {MatchID}", matchID);
+                }
+                catch (JsonException jsonException)
+                {
+                    Logger.LogWarning(jsonException, "Failed to parse match statistics JSON for match {MatchID}", matchID);
+
+                    return BadRequest(new { error_code = 400, message = @"Invalid JSON in ""data"" parameter" });
+                }
+            }
+        }
 
         return Ok(new { error_code = 100 });
     }
@@ -118,7 +230,29 @@ public class AscensionController : ControllerBase
     /// </remarks>
     private IActionResult RecordSpectateStartTime()
     {
-        // TODO: Implement Spectate Start Time Recording
+        string? matchID = Request.Query["match_id"].SingleOrDefault();
+        string? accountIDString = Request.Query["account_id"].SingleOrDefault();
+        string? region = Request.Query["region"].SingleOrDefault();
+
+        if (string.IsNullOrEmpty(matchID))
+            return BadRequest(new { error_code = 400, message = @"Missing Required Parameter ""match_id""" });
+
+        if (string.IsNullOrEmpty(accountIDString))
+            return BadRequest(new { error_code = 400, message = @"Missing Required Parameter ""account_id""" });
+
+        if (string.IsNullOrEmpty(region))
+            return BadRequest(new { error_code = 400, message = @"Missing Required Parameter ""region""" });
+
+        if (int.TryParse(accountIDString, out int accountID).Equals(false))
+            return BadRequest(new { error_code = 400, message = @"Invalid Parameter ""account_id""" });
+
+        string cacheKey = $"Ascension:SpectateStartTime:{region}:{matchID}:{accountID}";
+        DateTimeOffset startTime = DateTimeOffset.UtcNow;
+
+        DistributedCache.StringSet(cacheKey, startTime.ToUnixTimeSeconds(), TimeSpan.FromDays(7));
+
+        Logger.LogInformation("Recorded spectate start time for match {MatchID}, account {AccountID}, region {Region} at {StartTime}",
+            matchID, accountID, region, startTime);
 
         return Ok(new { error_code = 100 });
     }
