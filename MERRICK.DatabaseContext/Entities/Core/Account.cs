@@ -1,4 +1,4 @@
-﻿namespace MERRICK.DatabaseContext.Entities.Core;
+namespace MERRICK.DatabaseContext.Entities.Core;
 
 [Index(nameof(Name), IsUnique = true)]
 public class Account
@@ -34,6 +34,8 @@ public class Account
     public List<FriendedPeer> FriendedPeers { get; set; } = [];
 
     public List<IgnoredPeer> IgnoredPeers { get; set; } = [];
+
+    public List<Discipline.Suspension> Suspensions { get; set; } = [];
 
     public List<string> SelectedStoreItems { get; set; } = ["ai.Default Icon", "cc.white", "t.Standard"];
 

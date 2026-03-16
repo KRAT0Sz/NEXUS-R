@@ -90,6 +90,7 @@ public partial class ClientRequesterController(MerrickContext databaseContext, I
 
             // store
             "get_daily_special"             => await GetDailySpecial(),
+            "selected_upgrades"             => await GetUpgrades(),
 
             // guides
             "get_guide_list_filtered"       => await GetGuideList(),

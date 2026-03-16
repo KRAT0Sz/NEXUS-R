@@ -1,5 +1,7 @@
 namespace KONGOR.MasterServer.Controllers.Store;
 
+using KONGOR.MasterServer.Configuration.CodeRedemption;
+
 [ApiController]
 [Route("store_requester.php")]
 [Consumes("application/x-www-form-urlencoded")]
@@ -74,7 +76,7 @@ public class StoreController(MerrickContext databaseContext, IDatabase distribut
                 return await PurchaseProductInMatchLobby(account);
 
             case StoreRequestCode.REDEEM_CODE_REQUEST:
-                return RedeemCode();
+                return await RedeemCode();
 
             default:
                 return Ok(PhpSerialization.Serialize(new Dictionary<string, object>
@@ -338,6 +340,7 @@ public class StoreController(MerrickContext databaseContext, IDatabase distribut
         RedeemedCode redeemedCode = new ()
         {
             AccountID = account.ID,
+            Account = account,
             Code = code
         };
 
@@ -925,7 +928,7 @@ public class StoreController(MerrickContext databaseContext, IDatabase distribut
 ///         ..\game\resources0\ui\scripts\store2.lua
 ///     </code>
 /// </summary>
-file enum StoreCategory
+enum StoreCategory
 {
     New                  = 01,
     HeroAvatars          = 02,
@@ -951,7 +954,7 @@ file enum StoreCategory
     SelectionCircles     = 79
 }
 
-file enum StorePopupCode
+enum StorePopupCode
 {
     // Error Messages
     POP_UP_ERROR_MESSAGE                = 1,
@@ -969,10 +972,13 @@ file enum StorePopupCode
     POP_UP_COIN_PURCHASE_GIFT_SUCCESS   = 5,
 
     // Redeem Successful
-    POP_UP_COIN_REDEEM_SUCCESS          = 6
+    POP_UP_COIN_REDEEM_SUCCESS          = 6,
+
+    // Redemption Success
+    POP_UP_REDEMPTION_SUCCESS            = 7
 }
 
-file enum StoreRequestCode
+enum StoreRequestCode
 {
     // Get List Of Store Items
     LIST_STORE_ITEMS_REQUEST            = 01,
@@ -1005,7 +1011,7 @@ file enum StoreRequestCode
     REDEEM_CODE_REQUEST                 = 10
 }
 
-file enum StoreResponseCode
+enum StoreResponseCode
 {
     // Do Nothing (Primarily Accompanied By A Popup Code)
     NO_RESPONSE                         = 0,
@@ -1032,7 +1038,7 @@ file enum StoreResponseCode
     REFRESH_SELECTED_ITEMS_RESPONSE     = 7
 }
 
-file enum StoreErrorCode
+enum StoreErrorCode
 {
     // Invalid Request
     STORE_INVALID_REQUEST_ERROR                     = 01,

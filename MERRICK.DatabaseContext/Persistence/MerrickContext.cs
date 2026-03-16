@@ -14,6 +14,7 @@ public sealed class MerrickContext : DbContext
     public const string AuthenticationSchema = "auth";
     public const string StatisticsSchema = "stat";
     public const string MiscellaneousSchema = "misc";
+    public const string DisciplineSchema = "discipline";
 
     public DbSet<Account> Accounts => Set<Account>();
     public DbSet<AccountStatistics> AccountStatistics => Set<AccountStatistics>();
@@ -24,6 +25,7 @@ public sealed class MerrickContext : DbContext
     public DbSet<MatchParticipantStatistics> MatchParticipantStatistics => Set<MatchParticipantStatistics>();
     public DbSet<RedeemedCode> RedeemedCodes => Set<RedeemedCode>();
     public DbSet<Role> Roles => Set<Role>();
+    public DbSet<Suspension> Suspensions => Set<Suspension>();
     public DbSet<Token> Tokens => Set<Token>();
     public DbSet<User> Users => Set<User>();
 
@@ -40,6 +42,7 @@ public sealed class MerrickContext : DbContext
         ConfigureHeroMasteries(builder.Entity<HeroMastery>());
         ConfigureMatchStatistics(builder.Entity<MatchStatistics>());
         ConfigureMatchParticipantStatistics(builder.Entity<MatchParticipantStatistics>());
+        ConfigureSuspensions(builder.Entity<Suspension>());
     }
 
     private static void ConfigureSchemas(ModelBuilder builder)
@@ -55,6 +58,7 @@ public sealed class MerrickContext : DbContext
         builder.Entity<MatchStatistics>().ToTable("MatchStatistics", StatisticsSchema);
         builder.Entity<RedeemedCode>().ToTable("RedeemedCodes", CoreSchema);
         builder.Entity<Role>().ToTable("Roles", AuthenticationSchema);
+        builder.Entity<Suspension>().ToTable("Suspensions", DisciplineSchema);
         builder.Entity<Token>().ToTable("Tokens", AuthenticationSchema);
         builder.Entity<User>().ToTable("Users", CoreSchema);
     }
@@ -92,6 +96,12 @@ public sealed class MerrickContext : DbContext
             value => JsonSerializer.Deserialize<List<string>>(value, new JsonSerializerOptions()) ?? new List<string>(),
             StringListValueComparer
         );
+
+        builder.HasMany(user => user.Suspensions)
+            .WithOne(suspension => suspension.User)
+            .HasForeignKey(suspension => suspension.UserID)
+            .HasPrincipalKey(user => user.ID)
+            .OnDelete(DeleteBehavior.NoAction);
     }
 
     private static void ConfigureAccounts(EntityTypeBuilder<Account> builder)
@@ -106,6 +116,12 @@ public sealed class MerrickContext : DbContext
         builder.OwnsMany(account => account.BannedPeers, ownedNavigationBuilder => { ownedNavigationBuilder.ToJson(); });
         builder.OwnsMany(account => account.FriendedPeers, ownedNavigationBuilder => { ownedNavigationBuilder.ToJson(); });
         builder.OwnsMany(account => account.IgnoredPeers, ownedNavigationBuilder => { ownedNavigationBuilder.ToJson(); });
+
+        builder.HasMany(account => account.Suspensions)
+            .WithOne(suspension => suspension.Account)
+            .HasForeignKey(suspension => suspension.AccountID)
+            .HasPrincipalKey(account => account.ID)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 
     private static void ConfigureAccountStatistics(EntityTypeBuilder<AccountStatistics> builder)
@@ -150,5 +166,13 @@ public sealed class MerrickContext : DbContext
     private static void ConfigureMatchStatistics(EntityTypeBuilder<MatchStatistics> builder)
     {
         builder.OwnsMany(statistics => statistics.FragHistory, ownedNavigationBuilder => ownedNavigationBuilder.ToJson());
+    }
+
+    private static void ConfigureSuspensions(EntityTypeBuilder<Suspension> builder)
+    {
+        builder.HasOne(suspension => suspension.LiftedByUser)
+            .WithMany()
+            .HasForeignKey(suspension => suspension.LiftedByUserID)
+            .OnDelete(DeleteBehavior.NoAction);
     }
 }

@@ -57,7 +57,7 @@ public partial class StatsRequesterController
                 await MerrickContext.MatchParticipantStatistics.AddAsync(matchParticipantStatistics);
 
                 // Update Win Streak And Placement Phase Tracking
-                await UpdateWinStreakAndPlacementAsync(account.User, matchParticipantStatistics.Team, matchParticipantStatistics.Win, form.MatchStats.GameMode);
+                await UpdateWinStreakAndPlacementAsync(account.User, matchParticipantStatistics.Team, matchParticipantStatistics.Win > 0, form.MatchStats.GameMode);
 
                 // Update Hero Mastery Experience
                 await UpdateHeroMasteryAsync(account.ID, matchParticipantStatistics, form.MatchStats);
@@ -123,9 +123,12 @@ public partial class StatsRequesterController
 
         if (heroMastery is null)
         {
+            Account? account = await MerrickContext.Accounts.FindAsync(accountID);
+
             heroMastery = new HeroMastery
             {
                 AccountID = accountID,
+                Account = account!,
                 HeroIdentifier = heroIdentifier,
                 MasteryExperience = 0,
                 ClaimedRewardLevels = [],
@@ -146,7 +149,7 @@ public partial class StatsRequesterController
     {
         int baseExperience = Math.Min(playerStats.SecondsPlayed, 1800);
 
-        if (playerStats.Win)
+        if (playerStats.Win > 0)
         {
             baseExperience = (int)(baseExperience * 1.5);
         }
@@ -241,7 +244,7 @@ public partial class StatsRequesterController
                 await MerrickContext.MatchParticipantStatistics.AddAsync(matchParticipantStatistics);
 
                 // Update Win Streak And Placement Phase Tracking
-                await UpdateWinStreakAndPlacementAsync(account.User, matchParticipantStatistics.Team, matchParticipantStatistics.Win, form.MatchStats.GameMode);
+                await UpdateWinStreakAndPlacementAsync(account.User, matchParticipantStatistics.Team, matchParticipantStatistics.Win > 0, form.MatchStats.GameMode);
 
                 // Update Hero Mastery Experience
                 await UpdateHeroMasteryAsync(account.ID, matchParticipantStatistics, form.MatchStats);

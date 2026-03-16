@@ -1,5 +1,6 @@
 namespace KONGOR.MasterServer.Configuration;
 
+using KONGOR.MasterServer.Configuration.CodeRedemption;
 using KONGOR.MasterServer.Configuration.Economy;
 using KONGOR.MasterServer.Configuration.Mastery;
 using KONGOR.MasterServer.Configuration.Matchmaking;
@@ -18,6 +19,7 @@ public static class JSONConfiguration
     private static readonly string FeaturedItemsConfigurationJSON = File.ReadAllText(Path.Combine(BasePath, "Store", "FeaturedItemsConfiguration.json"));
     private static readonly string AnnouncementsConfigurationJSON = File.ReadAllText(Path.Combine(BasePath, "Announcements", "AnnouncementsConfiguration.json"));
     private static readonly string PlinkoConfigurationJSON = File.ReadAllText(Path.Combine(BasePath, "Plinko", "PlinkoConfiguration.json"));
+    private static readonly string CodeRedemptionConfigurationJSON = File.ReadAllText(Path.Combine(BasePath, "CodeRedemption", "CodeRedemptionConfiguration.json"));
 
     public static readonly EconomyConfiguration EconomyConfiguration = JsonSerializer.Deserialize<EconomyConfiguration>(EconomyConfigurationJSON)
         ?? throw new NullReferenceException("Economy Configuration Is NULL");
@@ -42,6 +44,9 @@ public static class JSONConfiguration
 
     public static readonly PlinkoConfiguration PlinkoConfiguration = JsonSerializer.Deserialize<PlinkoConfiguration>(PlinkoConfigurationJSON)
         ?? throw new NullReferenceException("Plinko Configuration Is NULL");
+
+    public static readonly CodeRedemptionConfiguration CodeRedemptionConfiguration = JsonSerializer.Deserialize<CodeRedemptionConfiguration>(CodeRedemptionConfigurationJSON)
+        ?? throw new NullReferenceException("Code Redemption Configuration Is NULL");
 
     static JSONConfiguration()
     {

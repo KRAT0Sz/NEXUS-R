@@ -1,4 +1,4 @@
-﻿<Project Sdk="Aspire.AppHost.Sdk/13.1.2">
+<Project Sdk="Aspire.AppHost.Sdk/13.1.2">
 
     <!--
         When There Is An Update To The "Aspire.Hosting.AppHost" NuGet Package:
@@ -20,7 +20,7 @@
 
     <ItemGroup>
         <ProjectReference Include="../DAWNBRINGER.WebPortal.UI/DAWNBRINGER.WebPortal.UI.csproj" AspireProjectMetadataTypeName="DAWNBRINGER" />
-        <ProjectReference Include="../KONGOR.MasterServer/KONGOR.MasterServer.csproj" AspireProjectMetadataTypeName="KONGOR" />
+        <ProjectReference Include="../KONGOR.MasterServer/KONGOR.MasterServer.csproj" AspireProjectMetadataTypeName="MasterServer" />
         <ProjectReference Include="../MERRICK.DatabaseContext/MERRICK.DatabaseContext.csproj" AspireProjectMetadataTypeName="MERRICK" />
         <ProjectReference Include="../TRANSMUTANSTEIN.ChatServer/TRANSMUTANSTEIN.ChatServer.csproj" AspireProjectMetadataTypeName="TRANSMUTANSTEIN" />
         <ProjectReference Include="../ZORGATH.WebPortal.API/ZORGATH.WebPortal.API.csproj" AspireProjectMetadataTypeName="ZORGATH" />

@@ -1,4 +1,4 @@
-﻿global using ASPIRE.Common.Communication;
+global using ASPIRE.Common.Communication;
 global using ASPIRE.Common.Constants;
 global using ASPIRE.Common.Enumerations.Match;
 global using ASPIRE.Common.Enumerations.Statistics;
@@ -28,6 +28,7 @@ global using KONGOR.MasterServer.Models.RequestResponse.Store;
 global using KONGOR.MasterServer.Models.ServerManagement;
 
 global using MERRICK.DatabaseContext.Entities.Core;
+global using MERRICK.DatabaseContext.Entities.Discipline;
 global using MERRICK.DatabaseContext.Entities.Game;
 global using MERRICK.DatabaseContext.Entities.Relational;
 global using MERRICK.DatabaseContext.Entities.Statistics;

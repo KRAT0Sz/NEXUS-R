@@ -254,11 +254,11 @@ public partial class ClientRequesterController
 
         List<MasteryRewardTier> rewards = [];
 
-        foreach (MasteryRewardConfiguration rewardConfig in MasteryRewardsConfiguration.MasteryRewards)
+        foreach (Configuration.Mastery.MasteryReward rewardConfig in JSONConfiguration.MasteryRewardsConfiguration.MasteryRewards)
         {
             bool alreadyClaimed = heroMasteries.SelectMany(m => m.ClaimedRewardLevels).Contains(rewardConfig.RequiredLevel);
 
-            MasteryReward reward = new ()
+            Models.RequestResponse.Stats.MasteryReward reward = new ()
             {
                 ProductID = rewardConfig.ProductIdentifier,
                 ProductName = rewardConfig.ProductName ?? string.Empty,
@@ -300,7 +300,7 @@ public partial class ClientRequesterController
         int baseExperience = Math.Min(playerStats.SecondsPlayed, 1800);
 
         // Win bonus: 50% extra
-        if (playerStats.Win)
+        if (playerStats.Win > 0)
         {
             baseExperience = (int)(baseExperience * 1.5);
         }

@@ -1,6 +1,6 @@
-﻿namespace KONGOR.MasterServer;
+namespace KONGOR.MasterServer;
 
-public class KONGOR
+public class MasterServer
 {
     // The Count Of Seconds Since The UNIX Epoch (Epochalypse = 19.01.2038 @ 03:14:07 UTC)
     public static long ServerStartEpochTime { get; private set; } = default;

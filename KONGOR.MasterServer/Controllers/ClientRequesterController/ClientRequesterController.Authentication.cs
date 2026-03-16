@@ -1,4 +1,4 @@
-﻿namespace KONGOR.MasterServer.Controllers.ClientRequesterController;
+namespace KONGOR.MasterServer.Controllers.ClientRequesterController;
 
 public partial class ClientRequesterController
 {
@@ -213,7 +213,19 @@ public partial class ClientRequesterController
             await MerrickContext.SaveChangesAsync();
         }
 
-        // TODO: Resolve Suspensions
+        (bool WasLifted, Suspension? ActiveSuspension, string FailureReason) suspensionCheckResult = CheckSuspensions(MerrickContext, account);
+
+        if (suspensionCheckResult.ActiveSuspension is not null && !suspensionCheckResult.WasLifted)
+        {
+            return Unauthorized(PhpSerialization.Serialize(new SRPAuthenticationFailureResponse(
+                suspensionCheckResult.ActiveSuspension.UserID.HasValue
+                    ? SRPAuthenticationFailureReason.UserIsSuspended
+                    : SRPAuthenticationFailureReason.AccountIsSuspended,
+                account.NameWithClanTag)));
+        }
+
+        if (suspensionCheckResult.WasLifted)
+            await MerrickContext.SaveChangesAsync();
 
         string chatServerHost = Environment.GetEnvironmentVariable("CHAT_SERVER_HOST")
             ?? throw new NullReferenceException("Chat Server Host Is NULL");
@@ -239,6 +251,35 @@ public partial class ClientRequesterController
         await DistributedCache.SetAccountNameForSessionCookie(cookie, accountName);
 
         return Ok(PhpSerialization.Serialize(response));
+    }
+
+    private static (bool IsSuspended, Suspension? ActiveSuspension, string FailureReason) CheckSuspensions(MerrickContext merrickContext, Account account)
+    {
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+
+        List<Suspension> activeSuspensions = merrickContext.Suspensions
+            .Where(s => !s.IsLifted
+                && (s.UserID == account.User.ID || s.AccountID == account.ID)
+                && (s.IsPermanent || s.TimestampExpires > now))
+            .ToList();
+
+        foreach (Suspension suspension in activeSuspensions)
+        {
+            if (suspension.TimestampExpires.HasValue && suspension.TimestampExpires <= now)
+            {
+                suspension.IsLifted = true;
+                suspension.TimestampLifted = now;
+            }
+        }
+
+        if (activeSuspensions.Any(s => !s.IsLifted && (s.IsPermanent || s.TimestampExpires > now)))
+        {
+            Suspension activeSuspension = activeSuspensions.Single(s => !s.IsLifted);
+
+            return (true, activeSuspension, string.Empty);
+        }
+
+        return (false, null, string.Empty);
     }
 
     private async Task<IActionResult> HandleAuthentication()

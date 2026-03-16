@@ -1,4 +1,4 @@
-﻿namespace KONGOR.MasterServer.Models.RequestResponse.SRP;
+namespace KONGOR.MasterServer.Models.RequestResponse.SRP;
 
 public class SRPAuthenticationFailureResponse(SRPAuthenticationFailureReason reason, string? accountName = null)
 {
@@ -9,6 +9,7 @@ public class SRPAuthenticationFailureResponse(SRPAuthenticationFailureReason rea
     public string AuthenticationOutcome { get; set; } = reason switch
     {
         SRPAuthenticationFailureReason.AccountIsDisabled                => "Account" + (accountName is null ? " " : $@" ""{accountName}"" ") + "Is Disabled",
+        SRPAuthenticationFailureReason.AccountIsSuspended              => "Account" + (accountName is null ? " " : $@" ""{accountName}"" ") + "Is Suspended",
         SRPAuthenticationFailureReason.AccountNotFound                  => "Account Not Found",
         SRPAuthenticationFailureReason.IncorrectPassword                => "Incorrect Password",
         SRPAuthenticationFailureReason.IncorrectSystemInformationFormat => "Incorrect System Information Format",
@@ -25,6 +26,7 @@ public class SRPAuthenticationFailureResponse(SRPAuthenticationFailureReason rea
         SRPAuthenticationFailureReason.MissingSystemInformation         => "Missing System Information",
         SRPAuthenticationFailureReason.SRPAuthenticationDisabled        => "SRP Authentication Is Disabled" + Environment.NewLine + "1) Open The Console (CTRL + F8)" + Environment.NewLine + @"2) Execute ""SetSave login_useSRP true""",
         SRPAuthenticationFailureReason.UnexpectedUserAgent              => "Unexpected User Agent",
+        SRPAuthenticationFailureReason.UserIsSuspended                  => "User" + (accountName is null ? " " : $@" ""{accountName}"" ") + "Is Suspended",
         _                                                               => "Unsupported Authentication Failure Reason" + " " + $@"""{nameof(reason)}"""
     };
 
@@ -40,6 +42,7 @@ public class SRPAuthenticationFailureResponse(SRPAuthenticationFailureReason rea
 public enum SRPAuthenticationFailureReason
 {
     AccountIsDisabled,
+    AccountIsSuspended,
     AccountNotFound,
     IncorrectPassword,
     IncorrectSystemInformationFormat,
@@ -55,5 +58,6 @@ public enum SRPAuthenticationFailureReason
     MissingSRPClientProof,
     MissingSystemInformation,
     SRPAuthenticationDisabled,
-    UnexpectedUserAgent
+    UnexpectedUserAgent,
+    UserIsSuspended
 }

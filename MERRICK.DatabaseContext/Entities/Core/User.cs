@@ -22,6 +22,8 @@ public class User
 
     public List<Account> Accounts { get; set; } = [];
 
+    public List<Discipline.Suspension> Suspensions { get; set; } = [];
+
     public DateTimeOffset TimestampCreated { get; set; } = DateTimeOffset.UtcNow;
 
     public DateTimeOffset TimestampLastActive { get; set; } = DateTimeOffset.UtcNow;

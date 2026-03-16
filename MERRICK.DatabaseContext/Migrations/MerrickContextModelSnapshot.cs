@@ -18,7 +18,7 @@ namespace MERRICK.DatabaseContext.Migrations
 #pragma warning disable 612, 618
             modelBuilder
                 .HasDefaultSchema("data")
-                .HasAnnotation("ProductVersion", "10.0.3")
+                .HasAnnotation("ProductVersion", "10.0.5")
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
@@ -128,6 +128,33 @@ namespace MERRICK.DatabaseContext.Migrations
                     b.ToTable("Clans", "core");
                 });
 
+            modelBuilder.Entity("MERRICK.DatabaseContext.Entities.Core.RedeemedCode", b =>
+                {
+                    b.Property<int>("ID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("ID"));
+
+                    b.Property<int>("AccountID")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTimeOffset>("TimestampRedeemed")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("ID");
+
+                    b.HasIndex("AccountID", "Code")
+                        .IsUnique();
+
+                    b.ToTable("RedeemedCodes", "core");
+                });
+
             modelBuilder.Entity("MERRICK.DatabaseContext.Entities.Core.User", b =>
                 {
                     b.Property<int>("ID")
@@ -144,6 +171,18 @@ namespace MERRICK.DatabaseContext.Migrations
                     b.Property<int>("GoldCoins")
                         .HasColumnType("int");
 
+                    b.Property<int>("MatchmakingCasualLossStreak")
+                        .HasColumnType("int");
+
+                    b.Property<int>("MatchmakingCasualWinStreak")
+                        .HasColumnType("int");
+
+                    b.Property<int>("MatchmakingLossStreak")
+                        .HasColumnType("int");
+
+                    b.Property<int>("MatchmakingWinStreak")
+                        .HasColumnType("int");
+
                     b.Property<string>("OwnedStoreItems")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -152,6 +191,9 @@ namespace MERRICK.DatabaseContext.Migrations
                         .IsRequired()
                         .HasMaxLength(84)
                         .HasColumnType("nvarchar(84)");
+
+                    b.Property<int>("PlacementMatchesRemaining")
+                        .HasColumnType("int");
 
                     b.Property<int>("PlinkoTickets")
                         .HasColumnType("int");
@@ -192,6 +234,54 @@ namespace MERRICK.DatabaseContext.Migrations
                     b.HasIndex("RoleID");
 
                     b.ToTable("Users", "core");
+                });
+
+            modelBuilder.Entity("MERRICK.DatabaseContext.Entities.Discipline.Suspension", b =>
+                {
+                    b.Property<int>("ID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("ID"));
+
+                    b.Property<int?>("AccountID")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsLifted")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsPermanent")
+                        .HasColumnType("bit");
+
+                    b.Property<int?>("LiftedByUserID")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<DateTimeOffset?>("TimestampExpires")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset?>("TimestampLifted")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<DateTimeOffset>("TimestampStarted")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<int?>("UserID")
+                        .HasColumnType("int");
+
+                    b.HasKey("ID");
+
+                    b.HasIndex("AccountID");
+
+                    b.HasIndex("LiftedByUserID");
+
+                    b.HasIndex("UserID");
+
+                    b.ToTable("Suspensions", "discipline");
                 });
 
             modelBuilder.Entity("MERRICK.DatabaseContext.Entities.Game.HeroGuide", b =>
@@ -342,6 +432,40 @@ namespace MERRICK.DatabaseContext.Migrations
                         .IsUnique();
 
                     b.ToTable("AccountStatistics", "stat");
+                });
+
+            modelBuilder.Entity("MERRICK.DatabaseContext.Entities.Statistics.HeroMastery", b =>
+                {
+                    b.Property<int>("ID")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("ID"));
+
+                    b.Property<int>("AccountID")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ClaimedRewardLevels")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("HeroIdentifier")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<int>("MasteryExperience")
+                        .HasColumnType("int");
+
+                    b.Property<DateTimeOffset>("TimestampLastUpdated")
+                        .HasColumnType("datetimeoffset");
+
+                    b.HasKey("ID");
+
+                    b.HasIndex("AccountID", "HeroIdentifier")
+                        .IsUnique();
+
+                    b.ToTable("HeroMasteries", "stat");
                 });
 
             modelBuilder.Entity("MERRICK.DatabaseContext.Entities.Statistics.MatchParticipantStatistics", b =>
@@ -982,6 +1106,17 @@ namespace MERRICK.DatabaseContext.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("MERRICK.DatabaseContext.Entities.Core.RedeemedCode", b =>
+                {
+                    b.HasOne("MERRICK.DatabaseContext.Entities.Core.Account", "Account")
+                        .WithMany()
+                        .HasForeignKey("AccountID")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Account");
+                });
+
             modelBuilder.Entity("MERRICK.DatabaseContext.Entities.Core.User", b =>
                 {
                     b.HasOne("MERRICK.DatabaseContext.Entities.Utility.Role", "Role")
@@ -991,6 +1126,30 @@ namespace MERRICK.DatabaseContext.Migrations
                         .IsRequired();
 
                     b.Navigation("Role");
+                });
+
+            modelBuilder.Entity("MERRICK.DatabaseContext.Entities.Discipline.Suspension", b =>
+                {
+                    b.HasOne("MERRICK.DatabaseContext.Entities.Core.Account", "Account")
+                        .WithMany("Suspensions")
+                        .HasForeignKey("AccountID")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("MERRICK.DatabaseContext.Entities.Core.User", "LiftedByUser")
+                        .WithMany()
+                        .HasForeignKey("LiftedByUserID")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("MERRICK.DatabaseContext.Entities.Core.User", "User")
+                        .WithMany("Suspensions")
+                        .HasForeignKey("UserID")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.Navigation("Account");
+
+                    b.Navigation("LiftedByUser");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("MERRICK.DatabaseContext.Entities.Game.HeroGuide", b =>
@@ -1121,6 +1280,17 @@ namespace MERRICK.DatabaseContext.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("MERRICK.DatabaseContext.Entities.Statistics.HeroMastery", b =>
+                {
+                    b.HasOne("MERRICK.DatabaseContext.Entities.Core.Account", "Account")
+                        .WithMany()
+                        .HasForeignKey("AccountID")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Account");
+                });
+
             modelBuilder.Entity("MERRICK.DatabaseContext.Entities.Statistics.MatchParticipantStatistics", b =>
                 {
                     b.OwnsMany("MERRICK.DatabaseContext.Entities.Statistics.AbilityEvent", "AbilityHistory", b1 =>
@@ -1215,6 +1385,11 @@ namespace MERRICK.DatabaseContext.Migrations
                     b.Navigation("FragHistory");
                 });
 
+            modelBuilder.Entity("MERRICK.DatabaseContext.Entities.Core.Account", b =>
+                {
+                    b.Navigation("Suspensions");
+                });
+
             modelBuilder.Entity("MERRICK.DatabaseContext.Entities.Core.Clan", b =>
                 {
                     b.Navigation("Members");
@@ -1223,6 +1398,8 @@ namespace MERRICK.DatabaseContext.Migrations
             modelBuilder.Entity("MERRICK.DatabaseContext.Entities.Core.User", b =>
                 {
                     b.Navigation("Accounts");
+
+                    b.Navigation("Suspensions");
                 });
 #pragma warning restore 612, 618
         }
