@@ -10,6 +10,9 @@ public partial class ClientRequesterController
             return BadRequest(@"Missing Value For Form Parameter ""nickname""");
 
         Account? account = await MerrickContext.Accounts
+            .Include(account => account.User)
+                .ThenInclude(user => user.Accounts)
+            .Include(account => account.Clan)
             .SingleOrDefaultAsync(account => account.Name.Equals(accountName));
 
         if (account is null)
@@ -90,6 +93,9 @@ public partial class ClientRequesterController
             return BadRequest(@"Missing Value For Form Parameter ""nickname""");
 
         Account? account = await MerrickContext.Accounts
+            .Include(account => account.User)
+                .ThenInclude(user => user.Accounts)
+            .Include(account => account.Clan)
             .SingleOrDefaultAsync(account => account.Name.Equals(accountName));
 
         if (account is null)
@@ -148,6 +154,7 @@ public partial class ClientRequesterController
 
         Account? account = await MerrickContext.Accounts
             .Include(account => account.User)
+                .ThenInclude(user => user.Accounts)
             .Include(account => account.Clan)
             .SingleOrDefaultAsync(account => account.Name.Equals(accountName));
 
@@ -331,6 +338,7 @@ public partial class ClientRequesterController
 
         Account? account = await MerrickContext.Accounts
             .Include(account => account.User)
+                .ThenInclude(user => user.Accounts)
             .Include(account => account.Clan)
             .SingleOrDefaultAsync(account => account.Name.Equals(accountName));
 
@@ -457,6 +465,9 @@ public partial class ClientRequesterController
             return BadRequest(@"Missing Value For Form Parameter ""nickname""");
 
         Account? account = await MerrickContext.Accounts
+            .Include(account => account.User)
+                .ThenInclude(user => user.Accounts)
+            .Include(account => account.Clan)
             .SingleOrDefaultAsync(account => account.Name.Equals(accountName));
 
         if (account is null)
@@ -598,6 +609,7 @@ public partial class ClientRequesterController
 
         Account? account = await MerrickContext.Accounts
             .Include(account => account.User)
+                .ThenInclude(user => user.Accounts)
             .Include(account => account.Clan)
             .SingleOrDefaultAsync(account => account.Name.Equals(accountName));
 
@@ -758,6 +770,8 @@ public partial class ClientRequesterController
 
         Account? account = await MerrickContext.Accounts
             .Include(account => account.User)
+                .ThenInclude(user => user.Accounts)
+            .Include(account => account.Clan)
             .SingleOrDefaultAsync(account => account.Name.Equals(accountName));
 
         if (account is null)
@@ -799,6 +813,8 @@ public partial class ClientRequesterController
 
         Account? account = await MerrickContext.Accounts
             .Include(account => account.User)
+                .ThenInclude(user => user.Accounts)
+            .Include(account => account.Clan)
             .SingleOrDefaultAsync(account => account.Name.Equals(accountName));
 
         if (account is null)
